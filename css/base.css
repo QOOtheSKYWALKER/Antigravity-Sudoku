@@ -1,0 +1,194 @@
+/* ===== Design System (dark theme = default) ===== */
+:root {
+    --bg-color: #121212;
+    --panel-bg: #1e1e1e;
+    --cell-bg: #252525;
+    --cell-selected: #2a3a5c;
+    --cell-highlight: #1e2a3a;
+    --cell-same-num: #1e3552;
+    --cell-error: rgba(255, 60, 60, 0.3);
+    --text-color: #e0e0e0;
+    --text-given: #8a9ab8;
+    --text-user: #64b5f6;
+    --text-error: #ff6b6b;
+    --text-muted: #ffffff;
+    --accent-color: #64b5f6;
+    --border-color: #333;
+    --border-box: #666;
+    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+    /* Button & UI component tokens */
+    --btn-bg: #333;
+    --btn-color: #ccc;
+    --btn-border: #444;
+    --btn-hover-bg: #444;
+    --btn-hover-color: #fff;
+    --info-panel-bg: #252525;
+    --reset-color: #888;
+    --reset-border: #555;
+    --rocket-bg: #1a3320;
+    --rocket-color: #66ffaa;
+    --rocket-border: #2a5a3a;
+    --rocket-hover-bg: #2a5a3a;
+    --toggle-bg: #444;
+    --toggle-knob: #ccc;
+    --toggle-checked-bg: #1e3d5e;
+    --mode-label-color: #666;
+    --message-color: #66ffaa;
+    --guide-color: #555;
+    --shadow-color: rgba(0, 0, 0, 0.5);
+    --settings-select-bg: #1e1e1e;
+    --settings-select-color: #aaa;
+    --settings-select-border: #333;
+}
+
+/* ===== Light Theme ===== */
+[data-theme="light"] {
+    --bg-color: #f0f2f5;
+    --panel-bg: #ffffff;
+    --cell-bg: #fafafa;
+    --cell-selected: #d0e4f7;
+    --cell-highlight: #e8f0f8;
+    --cell-same-num: #c8ddf0;
+    --cell-error: rgba(211, 47, 47, 0.15);
+    --text-color: #1a1a1a;
+    --text-given: #3a4a6a;
+    --text-user: #1565c0;
+    --text-error: #d32f2f;
+    --accent-color: #1976d2;
+    --border-color: #d0d0d0;
+    --border-box: #999;
+
+    --btn-bg: #e8e8e8;
+    --btn-color: #333;
+    --btn-border: #ccc;
+    --btn-hover-bg: #d0d0d0;
+    --btn-hover-color: #111;
+    --info-panel-bg: #f5f5f5;
+    --reset-color: #666;
+    --reset-border: #bbb;
+    --rocket-bg: #f1f8e9;
+    --rocket-color: #1b5e20;
+    --rocket-border: #c5e1a5;
+    --rocket-hover-bg: #dcedc8;
+    --toggle-bg: #ccc;
+    --toggle-knob: #fff;
+    --toggle-checked-bg: #90caf9;
+    --mode-label-color: #999;
+    --message-color: #2e7d32;
+    --guide-color: #999;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    --settings-select-bg: #fff;
+    --settings-select-color: #555;
+    --settings-select-border: #ccc;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: var(--font-family);
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: auto;
+}
+
+/* Lock background scroll when any dialog is open */
+body:has(dialog[open]) {
+    overflow: hidden;
+}
+
+/* Reset and global rules */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* Remove default browser focus outlines for a cleaner look */
+*:focus {
+    outline: none;
+}
+
+/* ===== Base Layout (720px and above / desktop) ===== */
+.container {
+    display: flex;
+    flex-direction: row;
+    gap: 30px;
+    background-color: var(--panel-bg);
+    padding: 30px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px var(--shadow-color);
+    border: 1px solid var(--border-color);
+}
+
+.title-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    gap: 16px;
+}
+
+h1 {
+    font-size: 1.5rem;
+    margin: 0;
+    letter-spacing: 4px;
+    color: var(--accent-color);
+    white-space: nowrap;
+}
+
+.title-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* Hide spin buttons (up/down buttons) in number inputs */
+/* Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+}
+
+/* Firefox */
+input[type=number] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+/* ===== Mobile Media Query ===== */
+@media screen and (max-width: 720px) {
+    :root {
+        --board-width: calc(100vw - 32px);
+    }
+
+    body {
+        align-items: center;
+        padding: 16px 0;
+    }
+
+    .container {
+        flex-direction: column;
+        width: 100%;
+        padding: 0 16px;
+        gap: 16px;
+        box-shadow: none;
+        border: none;
+        background-color: transparent;
+        height: auto;
+    }
+
+    .game-area,
+    .sidebar {
+        width: 100%;
+    }
+
+    .title-bar h1 {
+        font-size: 1.875rem;
+    }
+}
