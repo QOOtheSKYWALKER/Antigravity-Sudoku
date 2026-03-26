@@ -324,4 +324,34 @@ footer a:hover {
     .controls-grid {
         grid-template-columns: 1fr;
     }
+    .lang-switcher {
+        top: 16px;
+        right: 16px;
+    }
+}
+
+/* ===== 言語切替 ===== */
+.lang-switcher {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 1000;
+}
+
+.lang-select-landing {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.lang-select-landing:hover {
+    border-color: var(--accent);
 }
