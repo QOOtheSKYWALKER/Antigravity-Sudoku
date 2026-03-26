@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antigravity Sudoku - Heatmap Dashboard</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/board.css">
+    <link rel="stylesheet" href="css/ui.css">
+    <link rel="stylesheet" href="css/heatmap.css">
+</head>
+
+<body>
+    <div class="heatmap-app-layout">
+        <div class="left-panel">
+            <div id="dashboard-board" class="board dashboard-grid"></div>
+            <svg id="connection-layer" class="connection-layer"></svg>
+        </div>
+
+        <div class="right-panel">
+            <div class="sidebar-top">
+                <div class="header-section">
+                    <h1><a href="play.html" class="title-link">SUDOKU <span class="subtitle">Heatmap</span></a></h1>
+                </div>
+                <div class="mini-board-wrapper">
+                    <div class="preview-label">Actual Puzzle</div>
+                    <div id="mini-board" class="suzoku-mini-board"></div>
+                    <div class="mini-board-footer">
+                        <div class="board-stats">
+                            <span class="hints-count">HINTS: <span id="hints-val">0</span></span>
+                            <div id="global-techniques" class="global-tech-list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="symmetry-control">
+                    <div class="control-label">Symmetry Mode</div>
+                    <div class="radio-group">
+                        <label><input type="radio" name="symmetry" value="none" checked> None</label>
+                        <label><input type="radio" name="symmetry" value="point"> Point (点)</label>
+                        <label><input type="radio" name="symmetry" value="line"> Line (線)</label>
+                    </div>
+                </div>
+
+            </div>
+
+
+            <div class="sidebar-bottom">
+                <div class="control-panel">
+                    <div id="status-message" class="status-msg"></div>
+                    <div class="button-group">
+                        <div class="undo-redo-buttons">
+                            <button id="btn-undo" class="undo-redo-btn" title="Undo" disabled>↩</button>
+                            <button id="btn-redo" class="undo-redo-btn" title="Redo" disabled>↪</button>
+                        </div>
+                        <select id="start-mode" class="heatmap-select">
+                            <option value="full">Full (81 clues)</option>
+                            <option value="checkered">Checkered (市松)</option>
+                        </select>
+                        <button id="btn-start" class="action-btn btn-rocket-color">Start</button>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- Scripts -->
+    <script src="js/solver.js"></script>
+    <script src="js/solver-techniques.js"></script>
+    <script src="js/heatmap.js"></script>
+</body>
+
+</html>

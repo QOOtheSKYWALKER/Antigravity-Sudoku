@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antigravity Sudoku — Overview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/about.css">
+</head>
+
+<body>
+
+    <!-- ヒーロー -->
+    <div class="hero">
+        <span class="hero-badge">Antigravity Project</span>
+        <h1>Sudoku</h1>
+        <p class="hero-sub">
+            論理的ソルバーによる厳密な難易度制御と、
+            洗練されたUI（ダーク/ライト対応）を備えたブラウザベースの数独パズル。
+        </p>
+        <img class="hero-screenshot" src="screenshot.png" alt="Antigravity Sudoku のスクリーンショット">
+        <a href="play.html" class="play-btn">
+            ▶ プレイする
+        </a>
+    </div>
+
+    <!-- 特徴 -->
+    <section>
+        <h2><span class="emoji">✨</span>特徴</h2>
+        <p class="section-lead">論理的な解法に基づく本格的な数独体験を提供します。</p>
+        <div class="features">
+            <div class="feature-card">
+                <span class="feature-icon">🧠</span>
+                <h3>第2世代 問題生成エンジン</h3>
+                <p>「地ならし（Smoothing）」と「探索（Exploration）」の2フェーズによる革新的アルゴリズムを搭載。ヒント数を最小22個まで削ぎ落としつつ、解きごたえのある高品質な問題を爆速で生成します。
+                </p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">🎯</span>
+                <h3>厳密な難易度制御</h3>
+                <p>Naked Single〜XY-Chainまで、解法に必要な戦略に基づいて難易度を厳密に定義。直感や運に頼らない、純粋な論理の世界を楽しめます。</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">🚀</span>
+                <h3>ロケットボタン</h3>
+                <p>1回押すとNaked Single / Hidden Singleで確定できるセルを自動入力。手順が進まない場合、空白セルがあれば候補メモを全入力・剪定します。</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">📝</span>
+                <h3>メモモード</h3>
+                <p>トグルスイッチで入力モードとメモモードをワンタッチ切替。モバイル画面でも操作しやすい配置。</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">↩️</span>
+                <h3>Undo / Redo</h3>
+                <p>最大127ステップの履歴管理。ロケットボタンの操作も実際の変化があった場合のみ1ステップとして記録されます。</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">🎨</span>
+                <h3>テーマ & 言語設定</h3>
+                <p>ダーク/ライトモードの切り替えに加え、端末設定との連動も可能。日本語・英語の表示言語切り替えにも対応。</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">📸</span>
+                <h3>取込 (OCR)</h3>
+                <p>カメラや画像から数独の盤面を自動認識。OpenCV.js を使用した高度な画像処理により、手入力の手間を省いて即座にプレイ可能です。</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 難易度 -->
+    <section class="difficulty-section">
+        <h2><span class="emoji">📊</span>難易度レベル</h2>
+        <p class="section-lead">各難易度は、パズルの解法に必要な最高度の戦略によって定義されます。</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>レベル</th>
+                    <th>必要な戦略</th>
+                    <th>説明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="tag tag-easy">Easy</span></td>
+                    <td>Locked Candidates</td>
+                    <td>候補の数字が特定の行や列に限定されること（Pointing / Claiming）を利用した基本推論が必要。</td>
+                </tr>
+                <tr>
+                    <td><span class="tag tag-medium">Medium</span></td>
+                    <td>Pairs, Triples</td>
+                    <td>候補のペア（2国同盟）〜クアッド（4国同盟）を見つけて候補を除外する中級の推論が必要。</td>
+                </tr>
+                <tr>
+                    <td><span class="tag tag-hard">Hard</span></td>
+                    <td>Fish系, Wings, UR, Chains</td>
+                    <td>Jellyfish 等の高度な魚系、Unique Rectangle（唯一解）、XY-Chain 等の多段階推論が必要。</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- 操作方法 -->
+    <section class="controls-section">
+        <h2><span class="emoji">🎮</span>操作方法</h2>
+        <p class="section-lead">キーボードとオンスクリーンキーパッドの両方に対応しています。</p>
+        <div class="controls-grid">
+            <div class="control-item">
+                <span class="control-key">← → ↑ ↓</span>
+                <span class="control-desc">セル間を移動</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">1 〜 9</span>
+                <span class="control-desc">数字を入力</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">Del / BS</span>
+                <span class="control-desc">セルを消去</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">Space</span>
+                <span class="control-desc">メモモード切替</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">Ctrl+Z</span>
+                <span class="control-desc">元に戻す（Undo）</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">Ctrl+Y</span>
+                <span class="control-desc">やり直す（Redo）</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- テクノロジー -->
+    <section class="tech-section">
+        <h2><span class="emoji">⚙️</span>テクノロジー</h2>
+        <p class="section-lead">フレームワーク不使用。HTML + CSS + JavaScript のみで構築しています。</p>
+        <div class="tech-grid">
+            <span class="tech-badge">HTML5</span>
+            <span class="tech-badge">CSS3 (Vanilla)</span>
+            <span class="tech-badge">JavaScript (ES6+)</span>
+            <span class="tech-badge">CSS Grid / Flexbox</span>
+            <span class="tech-badge">GitHub Pages</span>
+            <span class="tech-badge">OpenCV.js (OCR)</span>
+            <span class="tech-badge">論理的ソルバー (15+ 戦略)</span>
+            <span class="tech-badge">バックトラッキング (唯一解検証)</span>
+        </div>
+    </section>
+
+    <!-- フッター -->
+    <footer>
+        <p>
+            Antigravity Sudoku — Built with ❤️
+            &nbsp;|&nbsp;
+            <a href="https://github.com/QOOtheSKYWALKER/Antigravity-Sudoku" target="_blank" rel="noopener">GitHub</a>
+            &nbsp;|&nbsp;
+            <a href="play.html">プレイする →</a>
+        </p>
+    </footer>
+
+</body>
+
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antigravity Sudoku</title>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/board.css">
+    <link rel="stylesheet" href="css/ui.css">
+    <link rel="stylesheet" href="css/modal.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="game-area">
+            <div class="title-bar">
+                <h1><a href="index.html" class="title-link" title="概要ページ">SUDOKU</a></h1>
+                <div class="difficulty-buttons">
+                    <button id="btn-ocr-open" class="action-btn btn-rocket-color" data-i18n="importOcr" title="画像を読み込んで解析">📷 取込</button>
+                    <button id="btn-easy" class="diff-btn active" data-level="easy">Easy</button>
+                    <button id="btn-medium" class="diff-btn" data-level="medium">Medium</button>
+                    <button id="btn-hard" class="diff-btn" data-level="hard">Hard</button>
+                </div>
+            </div>
+
+            <div id="board" class="board"></div>
+        </div>
+        <div class="sidebar">
+            <div class="info-panel" id="panel-controls">
+                <button id="btn-reset" class="reset-btn" data-i18n="reset">最初に戻す</button>
+                <button id="btn-rocket" class="rocket-btn">🚀</button>
+                <div class="undo-redo-buttons">
+                    <button id="btn-undo" class="undo-redo-btn" data-i18n-title="undoTitle" title="元に戻す (Ctrl+Z)"
+                        disabled>↩</button>
+                    <button id="btn-redo" class="undo-redo-btn" data-i18n-title="redoTitle" title="やり直す (Ctrl+Y)"
+                        disabled>↪</button>
+                </div>
+            </div>
+            <div class="info-panel" id="panel-memo">
+                <div class="mode-toggle-wrapper">
+                    <span class="mode-label active" id="label-input" data-i18n="input">入力</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="memo-toggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="mode-label" id="label-memo" data-i18n="memo">メモ</span>
+                </div>
+            </div>
+            <div id="message" class="message"></div>
+            <div id="keypad" class="keypad">
+                <div class="keypad-row">
+                    <button class="key-btn" data-num="1">1</button>
+                    <button class="key-btn" data-num="2">2</button>
+                    <button class="key-btn" data-num="3">3</button>
+                </div>
+                <div class="keypad-row">
+                    <button class="key-btn" data-num="4">4</button>
+                    <button class="key-btn" data-num="5">5</button>
+                    <button class="key-btn" data-num="6">6</button>
+                </div>
+                <div class="keypad-row">
+                    <button class="key-btn" data-num="7">7</button>
+                    <button class="key-btn" data-num="8">8</button>
+                    <button class="key-btn" data-num="9">9</button>
+                </div>
+                <div class="keypad-row keypad-row-single">
+                    <button class="key-btn action-btn bg-red" id="key-delete">Del</button>
+                </div>
+            </div>
+            <div class="controls-guide" id="controls-guide">
+                <p data-i18n="guideMove">← → ↑ ↓ : セル移動</p>
+                <p data-i18n="guideNumber">1〜9 : 数字入力</p>
+                <p data-i18n="guideDel">Del / BS : 消去</p>
+                <p data-i18n="guideMemo">Space : メモ切替</p>
+                <p data-i18n="guideUndo">Ctrl/⌘+Z : 元に戻す</p>
+                <p data-i18n="guideRedo">Ctrl/⌘+Y : やり直す</p>
+            </div>
+        </div>
+    </div>
+    <div class="settings-bar">
+        <select id="theme-select">
+            <option value="dark" data-i18n-option="themeDark">🌙 ダーク</option>
+            <option value="light" data-i18n-option="themeLight">☀️ ライト</option>
+            <option value="system" data-i18n-option="themeSystem">🖥️ 端末設定</option>
+        </select>
+        <select id="lang-select">
+            <option value="ja">🇯🇵 JP</option>
+            <option value="en">🇺🇸 EN</option>
+        </select>
+    </div>
+
+    <!-- ===== OCR App Integrated Modal ===== -->
+    <dialog id="ocr-main-modal" class="ocr-modal-content">
+        <button class="modal-close-btn" onclick="this.closest('dialog').close()">&times;</button>
+
+        <div id="upload-zone" class="upload-zone" tabindex="0">
+            <div id="upload-default-msg">
+                <p data-i18n="ocrDropText">ここに数独の画像（スクショ等）をドラッグ＆ドロップ</p>
+                <p data-i18n="ocrClickText">またはクリックしてファイルを選択</p>
+            </div>
+            <div class="btn-paste-wrapper">
+                <button id="btn-paste" class="action-btn" data-i18n="ocrPasteBtn">📋 ペースト</button>
+            </div>
+            <p id="upload-inline-error"></p>
+            <input type="file" id="file-input" accept="image/*">
+        </div>
+
+
+        <div class="ocr-progress-container">
+            <div id="ocr-progress-bar" class="progress-bar">
+                <div id="ocr-progress-fill" class="progress-fill"></div>
+            </div>
+            <div id="ocr-status" class="status-text">画像がロードされました。解析を開始してください。</div>
+        </div>
+
+
+
+        <!-- 統合ステート: 検証失敗時や手動修正時のUI -->
+        <div id="ocr-state-manual-grid" class="ocr-state-panel">
+            <div id="ocr-unified-drop-zone" class="upload-zone ocr-retry-zone" tabindex="0">
+                <div class="btn-paste-wrapper">
+                    <button id="btn-unified-paste" class="action-btn" data-i18n="ocrPasteBtn">📋 ペースト</button>
+                </div>
+                <p class="manual-hint" data-i18n="ocrManualHint">
+                    別の画像（スクショ）をアップロードするか、右側の盤面に直接入力してください。<br>（カメラで撮影した写真は非対応です）
+                </p>
+                <div class="ocr-controls ocr-controls-manual">
+                    <button id="btn-re-recognize" class="action-btn" data-i18n="ocrReRecognizeBtn">再認識</button>
+                    <button id="btn-manual-play" class="action-btn active" data-i18n="ocrManualPlayBtn">OK</button>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="ocr-canvas-container">
+            <div class="ocr-preview-column">
+                <div class="preview-label" data-i18n="originalImage">オリジナル画像</div>
+                <canvas id="main-canvas"></canvas>
+            </div>
+            <div class="ocr-preview-column">
+                <div class="preview-label" id="ocr-preview-label" data-i18n="correctionGrid">修正用盤面</div>
+                <div id="ocr-manual-grid" class="manual-grid sudoku-mini-grid"></div>
+            </div>
+        </div>
+
+    </dialog>
+
+    <!-- ===== Interactive OCR Error Correction Modal (Nested or Peer) ===== -->
+    <dialog id="ocr-correction-modal" class="ocr-correction-box">
+        <button class="modal-close-btn" onclick="this.closest('dialog').close()">&times;</button>
+        <p data-i18n="ocrCorrectionDesc">認識エラー。<br>このマスの数字は何ですか？</p>
+
+        <div id="ocr-correction-list" class="ocr-correction-list">
+            <!-- JSで動的に追加される: 
+                <div class="correction-item">
+                    <img src="..." alt="cell">
+                    <input type="number" min="1" max="9">
+                </div>
+                -->
+        </div>
+
+        <div class="modal-buttons">
+            <button id="modal-btn-submit" class="diff-btn active" data-i18n="ocrCorrectionSubmit">OK</button>
+        </div>
+
+    </dialog>
+
+
+    <script src="js/solver.js"></script>
+    <script src="js/solver-techniques.js"></script>
+    <script src="js/i18n.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/ocr-engine.js"></script>
+    <script src="js/ocr.js"></script>
+</body>
+
+</html>
