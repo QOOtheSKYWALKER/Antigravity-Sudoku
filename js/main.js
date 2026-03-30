@@ -200,7 +200,7 @@ class SudokuOrchestrator {
 }
 
 /**
- * UI Functions (script.js legacy)
+ * UI Functions
  */
 function clearToolHighlight() {
     btnReset.classList.remove('active');
@@ -275,17 +275,20 @@ async function initGame(difficulty, preGeneratedResult = null) {
         if (myId !== currentGenerationId) return;
         if (!result) throw new Error("No puzzle generated");
 
+        // ── ボード状態を確実にクリーンアップしてから新パズルをセット ──
         unifiedBoard.set(result.puzzle);
-        cellStateCache.fill(0xFFFFFFFF);
-        setSelectedIdx(0);
         SudokuBitUtils.clearUnsolvedCandidates(unifiedBoard);
         Utils.updateErrorFlags(unifiedBoard);
+        setSelectedIdx(0);              // UIフラグをunifiedBoardに反映
         initialSnapshot.set(unifiedBoard);
         setMemoMode(false);
         clearMemoAndHistory();
         currentTechnique = result.technique || '';
         messageEl.textContent = tTechnique(currentTechnique);
-        renderBoard();
+
+        // キャッシュを無視して全セルを強制再描画
+        forceRenderBoard();
+
     } catch (error) {
         console.error("Generation failed:", error);
         if (myId === currentGenerationId) {
@@ -382,7 +385,8 @@ function resetBoard() {
     Utils.updateErrorFlags(unifiedBoard);
     clearMemoAndHistory();
     messageEl.textContent = tTechnique(currentTechnique);
-    renderBoard();
+    // リセット時も強制再描画で確実にクリーンな状態にする
+    forceRenderBoard();
 }
 
 function scheduleRender() {
@@ -453,6 +457,60 @@ function updateUIFlags() {
     }
 }
 
+/**
+ * 強制全セル再描画（ゲーム開始時・リセット時に使用）
+ * cellStateCacheを無視してDOMを確実に最新状態に同期する
+ */
+function forceRenderBoard() {
+    updateUIFlags();
+    cellStateCache.fill(~0);
+
+    for (let idx = 0; idx < 81; idx++) {
+        const raw = unifiedBoard[idx];
+        cellStateCache[idx] = raw;
+
+        const cell = cells[idx];
+        const value = Utils.getValue(raw);
+        const memoFlags = raw & Utils.MASK_CANDIDATES;
+
+        // クラスを完全リセット
+        let cls = 'cell';
+        if (raw & Utils.BIT_GIVEN) cls += ' given';
+        if (raw & Utils.BIT_UI_SELECTED) cls += ' selected';
+        if (raw & Utils.BIT_UI_HIGHLIGHT) cls += ' highlighted';
+        if (raw & Utils.BIT_UI_SAME_DIGIT) cls += ' same-number';
+        if (raw & Utils.BIT_UI_ERROR) cls += ' error';
+        cell.className = cls;
+
+        // data-val と data-highlight を確実にクリアしてから再設定
+        delete cell.dataset.val;
+        delete cell.dataset.highlight;
+
+        const currentTarget = (raw & Utils.BIT_UI_TARGET_MASK) >>> Utils.BIT_UI_TARGET_SHIFT;
+        if (currentTarget > 0) cell.dataset.highlight = currentTarget;
+
+        const spans = cellMemoSpans[idx];
+
+        if (value !== 0) {
+            cell.dataset.val = value;
+            for (let n = 0; n < 9; n++) spans[n].textContent = '';
+        } else if (memoFlags !== 0) {
+            for (let n = 0; n < 9; n++) {
+                spans[n].textContent = (memoFlags & (1 << n)) ? String(n + 1) : '';
+            }
+        } else {
+            // 空セル: スパンを確実にクリア
+            for (let n = 0; n < 9; n++) spans[n].textContent = '';
+        }
+    }
+
+    // forceRenderBoard後もkeypad状態を同期
+    updateKeypadStatus();
+}
+
+/**
+ * 差分レンダリング（ゲーム中の通常操作に使用）
+ */
 function renderBoard() {
     updateUIFlags();
     for (let idx = 0; idx < 81; idx++) {
@@ -606,7 +664,7 @@ function handleRocket() {
         if (undoStack.length > MAX_HISTORY) undoStack.shift();
         redoStack = [];
         updateUndoRedoButtons();
-        
+
         SudokuBitUtils.updateErrorFlags(unifiedBoard);
         updateHighlight();
         renderBoard();
