@@ -1,568 +1,566 @@
-/* Standard <dialog> backdrop blur */
-dialog::backdrop {
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-}
-
-/* Shared modal dialog base */
-.ocr-modal-content,
-.ocr-correction-box,
-.system-dialog {
-    background: var(--panel-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 20px;
-    padding: 30px;
-    box-shadow: 0 20px 60px var(--shadow-color);
-    color: var(--text-color);
-    flex-direction: column;
-    /* Browser centers <dialog> automatically if margin is auto */
-    margin: auto;
-    overscroll-behavior: contain;
-}
-
-.modal-close-btn {
-    position: absolute;
-    top: 10px;
-    right: 15px;
-    background: none;
-    border: none;
-    color: var(--text-color);
-    font-size: 2rem;
-    cursor: pointer;
-    line-height: 1;
-    z-index: 100;
-    opacity: 0.5;
-    padding: 5px;
-}
-
-.ocr-modal-content[open],
-.ocr-correction-box[open],
-.system-dialog[open] {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-.system-dialog,
-.ocr-correction-box {
-    width: 400px;
-    max-width: 90%;
-    text-align: center;
-    padding: 32px 40px;
-}
-
-.system-dialog-content {
-    font-size: 1.1rem;
-    margin-bottom: 32px;
-    line-height: 1.6;
-    color: var(--text-color);
-    width: 100%;
-}
-
-.system-dialog-buttons {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-}
-
-.ocr-modal-content {
-    width: 670px;
-    max-width: 95%;
-    max-height: 90vh;
-    overflow-y: auto;
-    align-items: center;
-}
-
-.upload-zone {
-    border: 2px dashed var(--border-color);
-    width: 100%;
-    border-radius: 12px;
-    padding: 40px 20px;
-    text-align: center;
-    background-color: var(--panel-bg);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-#upload-default-msg {
-    margin-bottom: 32px;
-}
-
-#upload-inline-error {
-    display: none;
-    color: #ff6666;
-    margin-top: 8px;
-}
-
-#upload-inline-error.visible {
-    display: block;
-}
-
-#file-input {
-    display: none;
-}
-
-.upload-zone.dragover {
-    border-color: var(--accent-color);
-    background-color: rgba(25, 118, 210, 0.05);
-}
-
-.ocr-retry-zone {
-    padding: 20px;
-    border-width: 1.5px;
-    background-color: transparent;
-    border-color: rgba(168, 199, 250, 0.3);
-    cursor: pointer;
-}
-
-.upload-zone p {
-    margin: 5px 0;
-    color: var(--text-color);
-    pointer-events: none;
-}
-
-/* Shared OCR panel base */
-.ocr-state-panel,
-.ocr-progress-container {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 15px;
-    padding: 0;
-}
-
-#ocr-state-manual-grid {
-    width: 100%;
-}
-
-#ocr-unified-drop-zone {
-    width: 100%;
-    border-style: dashed;
-    padding: 25px;
-}
-
-#btn-paste,
-#btn-unified-paste {
-    padding: 6px 16px;
-    font-size: 0.85rem;
-    border-radius: 6px;
-    opacity: 0.8;
-}
-
-.btn-paste-wrapper {
-    margin-bottom: 20px;
-}
-
-.manual-hint {
-    font-size: 0.9rem;
-    margin-bottom: 32px;
-    /* Increased from 20px */
-    text-align: center;
-    opacity: 0.9;
-    white-space: pre-wrap;
-}
-
-.ocr-controls-manual {
-    margin-top: 16px;
-    /* Increased from 5px */
-    display: flex;
-    justify-content: center;
-    gap: 16px;
-}
-
-.ocr-progress-container {
-    justify-content: center;
-}
-
-.progress-bar {
-    width: 100%;
-    height: 8px;
-    background-color: var(--border-color);
-    border-radius: 4px;
-    overflow: hidden;
-    display: none;
-}
-
-.progress-fill {
-    width: var(--progress, 0%);
-    height: 100%;
-    background-color: var(--accent-color);
-    transition: width 0.3s ease;
-}
-
-.status-text {
-    font-size: 0.9rem;
-    color: var(--guide-color);
-    text-align: center;
-}
-
-/* OCR Modal State Management */
-#ocr-main-modal:not([data-state]) #upload-zone,
-#ocr-main-modal[data-state="upload"] #upload-zone {
-    display: block;
-}
-
-#ocr-main-modal:not([data-state]) .ocr-progress-container,
-#ocr-main-modal:not([data-state]) .ocr-canvas-container,
-#ocr-main-modal:not([data-state]) .ocr-state-panel,
-#ocr-main-modal[data-state="upload"] .ocr-progress-container,
-#ocr-main-modal[data-state="upload"] .ocr-canvas-container,
-#ocr-main-modal[data-state="upload"] .ocr-state-panel {
-    display: none;
-}
-
-#ocr-main-modal[data-state="analyzing"] #upload-zone {
-    display: none;
-}
-
-#ocr-main-modal[data-state="analyzing"] .ocr-progress-container {
-    display: flex;
-}
-
-#ocr-main-modal[data-state="analyzing"] .status-text {
-    color: #ffcc00;
-}
-
-#ocr-main-modal[data-state="analyzing"] .progress-bar {
-    display: block;
-}
-
-#ocr-main-modal[data-state="analyzing"] .ocr-canvas-container {
-    display: flex;
-}
-
-#ocr-main-modal[data-state="analyzing"] .ocr-state-panel,
-#ocr-main-modal[data-state="analyzing"] #ocr-manual-grid {
-    display: none;
-}
-
-#ocr-main-modal[data-state="correction"] #upload-zone,
-#ocr-main-modal[data-state="correction"] .ocr-progress-container {
-    display: none;
-}
-
-#ocr-main-modal[data-state="correction"] .ocr-canvas-container {
-    display: flex;
-}
-
-#ocr-main-modal[data-state="correction"] .ocr-state-panel {
-    display: flex;
-}
-
-#ocr-main-modal[data-state="correction"] #ocr-manual-grid,
-#ocr-main-modal[data-state="preview"] #ocr-manual-grid {
-    display: grid;
-}
-
-#ocr-main-modal[data-state="preview"] .ocr-state-panel {
-    display: none;
-}
-
-#ocr-main-modal[data-state="preview"] .ocr-canvas-container {
-    display: flex;
-}
-
-.ocr-canvas-container {
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    gap: 20px;
-    margin-top: 20px;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-
-.ocr-preview-column {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    box-sizing: border-box;
-}
-
-.ocr-preview-column:first-child {
-    flex: 1 1 100px;
-    min-width: 0;
-}
-
-.ocr-preview-column:last-child {
-    flex: 0 0 292px;
-    width: 292px;
-}
-
-.preview-label {
-    font-size: 0.8rem;
-    font-weight: normal;
-    color: var(--accent-color);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-#main-canvas {
-    max-width: 100%;
-    max-height: 292px;
-    width: auto;
-    height: auto;
-    border: 2px solid var(--border-color);
-    background-color: #111;
-    border-radius: 4px;
-    display: block;
-}
-
-/* OCR Correction Modal */
-.ocr-correction-box {
-    max-height: 95vh;
-    overflow-y: auto;
-    /* Allow scrolling within the dialog if content is long */
-}
-
-.ocr-correction-box[open] {
-    display: flex;
-    flex-direction: column;
-}
-
-.ocr-correction-box p {
-    color: var(--text-color);
-    margin: 0 0 32px 0;
-    white-space: pre-wrap;
-    font-size: 0.95rem;
-    line-height: 1.6;
-}
-
-#modal-digit-input {
-    width: 80px;
-    background: var(--bg-color);
-    color: var(--text-color);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    padding: 12px;
-    font-size: 2rem;
-    text-align: center;
-    font-family: inherit;
-    font-weight: bold;
-    outline: none;
-    margin-bottom: 24px;
-    box-sizing: border-box;
-}
-
-#modal-digit-input:focus {
-    border-color: var(--accent-color);
-}
-
-.modal-buttons {
-    display: flex;
-    justify-content: center;
-    gap: 12px;
-}
-
-.modal-buttons button {
-    min-width: 120px;
-    padding: 12px 24px;
-    font-size: 1rem;
-    border-radius: 10px;
-    font-weight: 600;
-}
-
-
-.manual-grid {
-    gap: 0;
-}
-
-.manual-grid input {
-    width: 32px;
-    height: 32px;
-    border: 1px solid var(--border-color);
-    text-align: center;
-    font-size: 1.2rem;
-    font-weight: normal;
-    color: var(--text-color);
-    background-color: transparent;
-    outline: none;
-    padding: 0;
-    font-family: var(--font-family);
-    box-sizing: border-box;
-}
-
-.manual-grid input:focus {
-    background-color: rgba(25, 118, 210, 0.1);
-}
-
-.ocr-correction-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin: 0 0 32px 0;
-    flex: 1 1 auto;
-    overflow-y: auto;
-    padding-right: 6px;
-    /* Safari Fix: prevent list from collapsing to 0 height */
-    min-height: 150px;
-}
-
-/* Scrollbar customization */
-.ocr-correction-list::-webkit-scrollbar {
-    width: 4px;
-}
-
-.ocr-correction-list::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 10px;
-}
-
-.ocr-correction-list::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: 10px;
-}
-
-.correction-item {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 24px;
-    background: rgba(255, 255, 255, 0.03);
-    padding: 10px 16px;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    /* Safari Fix: prevent item shrinkage inside flex container */
-    flex-shrink: 0;
-}
-
-.correction-item:focus-within {
-    border-color: var(--accent-color);
-    background: rgba(100, 181, 246, 0.05);
-}
-
-.correction-item img {
-    width: 50px;
-    height: 50px;
-    object-fit: contain;
-    background: white;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    /* Safari Fix */
-    flex-shrink: 0;
-}
-
-.correction-item input {
-    width: 60px;
-    background: var(--bg-color);
-    border: 1px solid var(--border-color);
-    color: var(--text-color);
-    padding: 10px;
-    font-size: 1.4rem;
-    border-radius: 8px;
-    text-align: center;
-    outline: none;
-    font-weight: bold;
-    /* Safari Fix */
-    flex-shrink: 0;
-    -webkit-appearance: none;
-    appearance: none;
-}
-
-.ocr-correction-box .modal-buttons {
-    margin-top: 24px;
-}
-
-/* ===== Mobile Media Query ===== */
-@media screen and (max-width: 720px) {
-
-    .ocr-modal-content {
-        padding: 40px 16px 32px 16px;
-        width: 100%;
-        max-width: 100%;
-        border-radius: 20px;
-        /* Keep rounded except in top-aligned states */
+@layer components {
+
+    /* Standard <dialog> backdrop blur */
+    dialog::backdrop {
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
     }
 
-    /* Upload state: center horizontally/vertically */
-    .ocr-modal-content[open]:not([data-state]),
-    .ocr-modal-content[open][data-state="upload"] {
-        margin: auto;
-        justify-content: center;
-        max-height: 90vh;
-    }
-
-    .ocr-modal-content[open][data-state="analyzing"],
-    .ocr-modal-content[open][data-state="correction"],
-    .ocr-modal-content[open][data-state="preview"] {
-        margin: 0;
-        border-radius: 0;
-        height: 100dvh;
-        max-height: 100dvh;
-        justify-content: flex-start;
-        padding-bottom: 60dvh;
-        /* Keyboard spacer: allow scrolling content above keyboard */
-    }
-
-    .ocr-correction-box[open],
-    .system-dialog[open] {
-        justify-content: center;
-        margin: auto;
-    }
-
-    .ocr-canvas-container {
+    /* Shared modal dialog base */
+    .ocr-modal-content,
+    .ocr-correction-box,
+    .system-dialog {
+        background: var(--panel-bg);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-xl);
+        padding: 30px;
+        box-shadow: 0 20px 60px var(--shadow-color);
+        color: var(--text-color);
         flex-direction: column;
-        align-items: center;
-        gap: 20px;
-    }
-
-    .ocr-preview-column {
-        width: 100%;
-        min-width: 0;
-    }
-
-    .ocr-correction-box p,
-    .system-dialog-content,
-    .upload-zone p,
-    .upload-zone #upload-default-msg p,
-    .manual-hint,
-    .preview-label,
-    .status-text {
-        font-size: 1.5rem;
-        line-height: 1.5;
-    }
-
-    #upload-inline-error {
-        font-size: 1.35rem;
+        /* Browser centers <dialog> automatically if margin is auto */
+        margin: auto;
+        overscroll-behavior: contain;
     }
 
     .modal-close-btn {
-        font-size: 2.5rem;
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        background: none;
+        border: none;
+        color: var(--text-color);
+        font-size: 2rem;
+        cursor: pointer;
+        line-height: 1;
+        z-index: 100;
+        opacity: 0.5;
+        padding: 5px;
     }
 
-    #system-dialog-ok,
-    #modal-btn-submit,
-    #btn-manual-play,
+    .ocr-modal-content[open],
+    .ocr-correction-box[open],
+    .system-dialog[open] {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .system-dialog,
+    .ocr-correction-box {
+        width: 400px;
+        max-width: 90%;
+        text-align: center;
+        padding: 32px 40px;
+    }
+
+    .system-dialog-content {
+        font-size: 1.1rem;
+        margin-bottom: 32px;
+        line-height: 1.6;
+        color: var(--text-color);
+        width: 100%;
+    }
+
+    .system-dialog-buttons {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+    }
+
+    .ocr-modal-content {
+        width: 670px;
+        max-width: 95%;
+        max-height: 90vh;
+        overflow-y: auto;
+        align-items: center;
+    }
+
+    .upload-zone {
+        border: 2px dashed var(--border-color);
+        width: 100%;
+        border-radius: 12px;
+        padding: 40px 20px;
+        text-align: center;
+        background-color: var(--panel-bg);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    #upload-default-msg {
+        margin-bottom: 32px;
+    }
+
+    #upload-inline-error {
+        display: none;
+        color: var(--text-error);
+        margin-top: 8px;
+    }
+
+    #upload-inline-error.visible {
+        display: block;
+    }
+
+    #file-input {
+        display: none;
+    }
+
+    .upload-zone.dragover {
+        border-color: var(--accent-color);
+        background-color: rgba(25, 118, 210, 0.05);
+    }
+
+    .ocr-retry-zone {
+        padding: 20px;
+        border-width: 1.5px;
+        background-color: transparent;
+        border-color: rgba(168, 199, 250, 0.3);
+        cursor: pointer;
+    }
+
+    .upload-zone p {
+        margin: 5px 0;
+        color: var(--text-color);
+        pointer-events: none;
+    }
+
+    /* Shared OCR panel base */
+    .ocr-state-panel,
+    .ocr-progress-container {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 15px;
+        padding: 0;
+    }
+
+    #ocr-state-manual-grid {
+        width: 100%;
+    }
+
+    #ocr-unified-drop-zone {
+        width: 100%;
+        border-style: dashed;
+        padding: 25px;
+    }
+
     #btn-paste,
-    #btn-re-recognize,
     #btn-unified-paste {
-        padding: 16px 32px;
-        font-size: 1.5rem;
+        padding: 6px 16px;
+        font-size: 0.85rem;
+        border-radius: 6px;
+        opacity: 0.8;
+    }
+
+    .btn-paste-wrapper {
+        margin-bottom: 20px;
+    }
+
+    .manual-hint {
+        font-size: 0.9rem;
+        margin-bottom: 32px;
+        text-align: center;
+        opacity: 0.9;
+        white-space: pre-wrap;
+    }
+
+    .ocr-controls-manual {
+        margin-top: 16px;
+        display: flex;
+        justify-content: center;
+        gap: 16px;
+    }
+
+    .ocr-progress-container {
+        justify-content: center;
+    }
+
+    .progress-bar {
+        width: 100%;
+        height: 8px;
+        background-color: var(--border-color);
+        border-radius: 4px;
+        overflow: hidden;
+        display: none;
+    }
+
+    .progress-fill {
+        width: var(--progress, 0%);
+        height: 100%;
+        background-color: var(--accent-color);
+        transition: width 0.3s ease;
+    }
+
+    .status-text {
+        font-size: 0.9rem;
+        color: var(--guide-color);
+        text-align: center;
+    }
+
+    /* OCR Modal State Management */
+    #ocr-main-modal:not([data-state]) #upload-zone,
+    #ocr-main-modal[data-state="upload"] #upload-zone {
+        display: block;
+    }
+
+    #ocr-main-modal:not([data-state]) .ocr-progress-container,
+    #ocr-main-modal:not([data-state]) .ocr-canvas-container,
+    #ocr-main-modal:not([data-state]) .ocr-state-panel,
+    #ocr-main-modal[data-state="upload"] .ocr-progress-container,
+    #ocr-main-modal[data-state="upload"] .ocr-canvas-container,
+    #ocr-main-modal[data-state="upload"] .ocr-state-panel {
+        display: none;
+    }
+
+    #ocr-main-modal[data-state="analyzing"] #upload-zone {
+        display: none;
+    }
+
+    #ocr-main-modal[data-state="analyzing"] .ocr-progress-container {
+        display: flex;
+    }
+
+    #ocr-main-modal[data-state="analyzing"] .status-text {
+        color: #ffcc00; /* Bright amber for in-progress indicator */
+    }
+
+    #ocr-main-modal[data-state="analyzing"] .progress-bar {
+        display: block;
+    }
+
+    #ocr-main-modal[data-state="analyzing"] .ocr-canvas-container {
+        display: flex;
+    }
+
+    #ocr-main-modal[data-state="analyzing"] .ocr-state-panel,
+    #ocr-main-modal[data-state="analyzing"] #ocr-manual-grid {
+        display: none;
+    }
+
+    #ocr-main-modal[data-state="correction"] #upload-zone,
+    #ocr-main-modal[data-state="correction"] .ocr-progress-container {
+        display: none;
+    }
+
+    #ocr-main-modal[data-state="correction"] .ocr-canvas-container {
+        display: flex;
+    }
+
+    #ocr-main-modal[data-state="correction"] .ocr-state-panel {
+        display: flex;
+    }
+
+    #ocr-main-modal[data-state="correction"] #ocr-manual-grid,
+    #ocr-main-modal[data-state="preview"] #ocr-manual-grid {
+        display: grid;
+    }
+
+    #ocr-main-modal[data-state="preview"] .ocr-state-panel {
+        display: none;
+    }
+
+    #ocr-main-modal[data-state="preview"] .ocr-canvas-container {
+        display: flex;
+    }
+
+    .ocr-canvas-container {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        gap: 20px;
+        margin-top: 20px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .ocr-preview-column {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        box-sizing: border-box;
+    }
+
+    .ocr-preview-column:first-child {
+        flex: 1 1 100px;
+        min-width: 0;
+    }
+
+    .ocr-preview-column:last-child {
+        flex: 0 0 292px;
+        width: 292px;
+    }
+
+    .preview-label {
+        font-size: 0.8rem;
+        font-weight: normal;
+        color: var(--accent-color);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    #main-canvas {
+        max-width: 100%;
+        max-height: 292px;
         width: auto;
-        min-width: 160px;
+        height: auto;
+        border: 2px solid var(--border-color);
+        background-color: #111; /* Canvas-specific: always dark regardless of theme */
+        border-radius: var(--radius-sm);
+        display: block;
+    }
+
+    /* OCR Correction Modal */
+    .ocr-correction-box {
+        max-height: 95vh;
+        overflow-y: auto;
+    }
+
+    .ocr-correction-box[open] {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .ocr-correction-box p {
+        color: var(--text-color);
+        margin: 0 0 32px 0;
+        white-space: pre-wrap;
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+
+    #modal-digit-input {
+        width: 80px;
+        background: var(--bg-color);
+        color: var(--text-color);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 12px;
+        font-size: 2rem;
+        text-align: center;
+        font-family: inherit;
+        font-weight: bold;
+        outline: none;
+        margin-bottom: 24px;
+        box-sizing: border-box;
+    }
+
+    #modal-digit-input:focus {
+        border-color: var(--accent-color);
+    }
+
+    .modal-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+    }
+
+    .modal-buttons button {
+        min-width: 120px;
+        padding: 12px 24px;
+        font-size: 1rem;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+
+    .manual-grid {
+        gap: 0;
+    }
+
+    .manual-grid input {
+        width: 32px;
+        height: 32px;
+        border: 1px solid var(--border-color);
+        text-align: center;
+        font-size: 1.2rem;
+        font-weight: normal;
+        color: var(--text-color);
+        background-color: transparent;
+        outline: none;
+        padding: 0;
+        font-family: var(--font-family);
+        box-sizing: border-box;
+    }
+
+    .manual-grid input:focus {
+        background-color: rgba(25, 118, 210, 0.1);
+    }
+
+    .ocr-correction-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin: 0 0 32px 0;
+        flex: 1 1 auto;
+        overflow-y: auto;
+        padding-right: 6px;
+        /* Safari Fix: prevent list from collapsing to 0 height */
+        min-height: 150px;
+    }
+
+    /* Scrollbar customization */
+    .ocr-correction-list::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .ocr-correction-list::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+    }
+
+    .ocr-correction-list::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 10px;
     }
 
     .correction-item {
-        gap: 16px;
-        padding: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 10px 16px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        /* Safari Fix: prevent item shrinkage inside flex container */
+        flex-shrink: 0;
+    }
+
+    .correction-item:focus-within {
+        border-color: var(--accent-color);
+        background: rgba(100, 181, 246, 0.05);
     }
 
     .correction-item img {
-        width: 75px;
-        height: 75px;
+        width: 50px;
+        height: 50px;
+        object-fit: contain;
+        background: white;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        /* Safari Fix */
+        flex-shrink: 0;
     }
 
     .correction-item input {
-        width: 90px;
-        font-size: 2.1rem;
+        width: 60px;
+        background: var(--bg-color);
+        border: 1px solid var(--border-color);
+        color: var(--text-color);
+        padding: 10px;
+        font-size: 1.4rem;
+        border-radius: var(--radius-md);
+        text-align: center;
+        outline: none;
+        font-weight: bold;
+        /* Safari Fix */
+        flex-shrink: 0;
+        -webkit-appearance: none;
+        appearance: none;
     }
-}
 
-/* Hide other modals when OCR correction modal is active */
-body:has(#ocr-correction-modal[open]) #ocr-main-modal {
-    display: none;
-}
+    .ocr-correction-box .modal-buttons {
+        margin-top: 24px;
+    }
+
+    /* Hide main OCR modal when correction dialog is active */
+    body:has(#ocr-correction-modal[open]) #ocr-main-modal {
+        display: none;
+    }
+
+    /* ===== Mobile ===== */
+    @media screen and (max-width: 720px) {
+
+        .ocr-modal-content {
+            padding: 40px 16px 32px 16px;
+            width: 100%;
+            max-width: 100%;
+            border-radius: var(--radius-xl);
+        }
+
+        /* Upload state: center horizontally/vertically */
+        .ocr-modal-content[open]:not([data-state]),
+        .ocr-modal-content[open][data-state="upload"] {
+            margin: auto;
+            justify-content: center;
+            max-height: 90vh;
+        }
+
+        .ocr-modal-content[open][data-state="analyzing"],
+        .ocr-modal-content[open][data-state="correction"],
+        .ocr-modal-content[open][data-state="preview"] {
+            margin: 0;
+            border-radius: 0;
+            height: 100dvh;
+            max-height: 100dvh;
+            justify-content: flex-start;
+            padding-bottom: 60dvh;
+            /* Keyboard spacer: allow scrolling content above keyboard */
+        }
+
+        .ocr-correction-box[open],
+        .system-dialog[open] {
+            justify-content: center;
+            margin: auto;
+        }
+
+        .ocr-canvas-container {
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .ocr-preview-column {
+            width: 100%;
+            min-width: 0;
+        }
+
+        .ocr-correction-box p,
+        .system-dialog-content,
+        .upload-zone p,
+        .upload-zone #upload-default-msg p,
+        .manual-hint,
+        .preview-label,
+        .status-text {
+            font-size: 1.5rem;
+            line-height: 1.5;
+        }
+
+        #upload-inline-error {
+            font-size: 1.35rem;
+        }
+
+        .modal-close-btn {
+            font-size: 2.5rem;
+        }
+
+        #system-dialog-ok,
+        #modal-btn-submit,
+        #btn-manual-play,
+        #btn-paste,
+        #btn-re-recognize,
+        #btn-unified-paste {
+            padding: 16px 32px;
+            font-size: 1.5rem;
+            width: auto;
+            min-width: 160px;
+        }
+
+        .correction-item {
+            gap: 16px;
+            padding: 12px;
+        }
+
+        .correction-item img {
+            width: 75px;
+            height: 75px;
+        }
+
+        .correction-item input {
+            width: 90px;
+            font-size: 2.1rem;
+        }
+    }
+
+} /* end @layer components */

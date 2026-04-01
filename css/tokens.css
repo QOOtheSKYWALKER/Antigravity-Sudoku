@@ -1,0 +1,166 @@
+/* ===== Layer Order Declaration ===== */
+/* Establishes cascade priority: base < components < states */
+/* Any style outside a named @layer has highest priority (tokens, :root). */
+@layer base, components, states;
+
+/* ===== 1. Primitive Palette ===== */
+/* Raw values only. No semantic meaning attached here. */
+:root {
+    /* Blues */
+    --palette-blue-300: #64b5f6;
+    --palette-blue-600: #1565c0;
+    --palette-blue-700: #1976d2;
+
+    /* Greens */
+    --palette-green-300: #66ffaa;
+    --palette-green-800: #1b5e20;
+    --palette-green-900: #1a3320;
+
+    /* Reds */
+    --palette-red-400: #ff6b6b;
+    --palette-red-700: #d32f2f;
+
+    /* Neutrals */
+    --palette-gray-100: #e0e0e0;
+    --palette-gray-900: #121212;
+
+    /* Border radii */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+}
+
+/* ===== 2. Semantic Tokens (Dark theme = default) ===== */
+:root {
+    /* [Background] */
+    --bg-color:      #121212;
+    --panel-bg:      #1e1e1e;
+    --cell-bg:       #252525;
+    --info-panel-bg: #252525;
+
+    /* [Cell States] */
+    --cell-selected:  #2a3a5c;
+    --cell-highlight: #1e2a3a;
+    --cell-same-num:  #1e3552;
+    --cell-error:     rgba(255, 60, 60, 0.3);
+
+    /* [Text] */
+    --text-color: #e0e0e0;
+    --text-given: #8a9ab8;
+    --text-user:  #64b5f6;
+    --text-error: #ff6b6b;
+    --text-muted: #ffffff;
+
+    /* [Accent] */
+    --accent-color: #64b5f6;
+
+    /* [Border] */
+    --border-color: #333;
+    --border-box:   #666;
+
+    /* [Font] */
+    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+    /* [Button: Base] */
+    --btn-bg:       #333;
+    --btn-fg:       #ccc;      /* renamed from --btn-color */
+    --btn-border:   #444;
+    --btn-hover-bg: #444;
+    --btn-hover-fg: #fff;      /* renamed from --btn-hover-color */
+
+    /* [Button: Reset] */
+    --reset-fg:     #888;      /* renamed from --reset-color */
+    --reset-border: #555;
+
+    /* [Button: Rocket] */
+    --rocket-bg:       #1a3320;
+    --rocket-fg:       #66ffaa; /* renamed from --rocket-color */
+    --rocket-border:   #2a5a3a;
+    --rocket-hover-bg: #2a5a3a;
+
+    /* [Toggle] */
+    --toggle-bg:         #444;
+    --toggle-knob:       #ccc;
+    --toggle-checked-bg: #1e3d5e;
+
+    /* [Labels & Messages] */
+    --mode-label-color: #666;
+    --message-color:    #66ffaa;
+    --guide-color:      #555;
+
+    /* [State: Error subtle] */
+    --error-bg-subtle:     rgba(255, 60, 60, 0.15);
+    --error-border-subtle: rgba(255, 60, 60, 0.3);
+
+    /* [Shadow] */
+    --shadow-color: rgba(0, 0, 0, 0.5);
+
+    /* [Settings Select] */
+    --select-bg:     #1e1e1e;  /* renamed from --settings-select-bg */
+    --select-fg:     #aaa;     /* renamed from --settings-select-color */
+    --select-border: #333;     /* renamed from --settings-select-border */
+}
+
+/* ===== 3. Light Theme Overrides ===== */
+[data-theme="light"] {
+    /* [Background] */
+    --bg-color:      #f0f2f5;
+    --panel-bg:      #ffffff;
+    --cell-bg:       #fafafa;
+    --info-panel-bg: #f5f5f5;
+
+    /* [Cell States] */
+    --cell-selected:  #d0e4f7;
+    --cell-highlight: #e8f0f8;
+    --cell-same-num:  #c8ddf0;
+    --cell-error:     rgba(211, 47, 47, 0.15);
+
+    /* [Text] */
+    --text-color: #1a1a1a;
+    --text-given: #3a4a6a;
+    --text-user:  #1565c0;
+    --text-error: #d32f2f;
+
+    /* [Accent] */
+    --accent-color: #1976d2;
+
+    /* [Border] */
+    --border-color: #d0d0d0;
+    --border-box:   #999;
+
+    /* [Button: Base] */
+    --btn-bg:       #e8e8e8;
+    --btn-fg:       #333;
+    --btn-border:   #ccc;
+    --btn-hover-bg: #d0d0d0;
+    --btn-hover-fg: #111;
+
+    /* [Button: Reset] */
+    --reset-fg:     #666;
+    --reset-border: #bbb;
+
+    /* [Button: Rocket] */
+    --rocket-bg:       #f1f8e9;
+    --rocket-fg:       #1b5e20;
+    --rocket-border:   #c5e1a5;
+    --rocket-hover-bg: #dcedc8;
+
+    /* [Toggle] */
+    --toggle-bg:         #ccc;
+    --toggle-knob:       #fff;
+    --toggle-checked-bg: #90caf9;
+
+    /* [Labels & Messages] */
+    --mode-label-color: #999;
+    --message-color:    #2e7d32;
+    --guide-color:      #999;
+
+    /* [Shadow] */
+    --shadow-color: rgba(0, 0, 0, 0.1);
+
+    /* [Settings Select] */
+    --select-bg:     #fff;
+    --select-fg:     #555;
+    --select-border: #ccc;
+}

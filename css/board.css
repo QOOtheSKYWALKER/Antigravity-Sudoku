@@ -1,193 +1,197 @@
-/* Board (fixed size) */
-.board {
-    display: grid;
-    grid-template-columns: repeat(9, 48px);
-    grid-template-rows: repeat(9, 48px);
-    gap: 1px;
-    background-color: var(--border-color);
-    border: 2px solid var(--border-box);
-    border-radius: 4px;
-    /* Removed box-shadow: inset - high repaint cost on legacy mobile GPU */
-    margin: 0;
-}
+@layer components {
 
-.cell {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: var(--cell-bg);
-    font-size: 1.3rem;
-    font-weight: bold;
-    color: var(--text-user);
-    cursor: pointer;
-    position: relative;
-    user-select: none;
-    touch-action: manipulation;
-}
-
-.cell.given {
-    color: var(--text-given);
-}
-
-.cell.selected {
-    background-color: var(--cell-selected);
-    /* outline instead of box-shadow: inset — avoids GPU repaint on every tap */
-    outline: 2px solid var(--accent-color);
-    outline-offset: -2px;
-}
-
-.cell.highlighted {
-    background-color: var(--cell-highlight);
-}
-
-.cell.same-number {
-    background-color: var(--cell-same-num);
-}
-
-.cell.error {
-    background-color: var(--cell-error);
-    color: var(--text-error);
-}
-
-.board .cell:nth-child(3n):not(:nth-child(9n)) {
-    border-right: 2px solid var(--border-box);
-}
-
-.board .cell:nth-child(n+19):nth-child(-n+27),
-.board .cell:nth-child(n+46):nth-child(-n+54) {
-    border-bottom: 2px solid var(--border-box);
-}
-
-
-/* Cell number display via CSS ::after (no textContent DOM ops on cache hit) */
-.cell::after {
-    content: attr(data-val);
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.3rem;
-    font-weight: bold;
-    color: inherit;
-    pointer-events: none;
-    z-index: 1;
-    /* Overlay above memo-grid (z-index: 0) */
-}
-
-/* Memo display: always present in DOM, hidden behind value overlay when data-val is set */
-.cell .memo-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    top: 0;
-    left: 0;
-    pointer-events: none;
-    z-index: 0;
-    /* Behind ::after number overlay */
-}
-
-.cell .memo-grid span {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 0.8rem;
-    color: var(--mode-label-color);
-    font-weight: 500;
-}
-
-/* 
-   Advanced Highlight Engine: 
-   Uses data-highlight attribute effectively to highlight both determined numbers 
-   (same-number class) and candidate memos (CSS selectors) simultaneously.
-*/
-.cell[data-highlight="1"] .memo-grid span:nth-of-type(1),
-.cell[data-highlight="2"] .memo-grid span:nth-of-type(2),
-.cell[data-highlight="3"] .memo-grid span:nth-of-type(3),
-.cell[data-highlight="4"] .memo-grid span:nth-of-type(4),
-.cell[data-highlight="5"] .memo-grid span:nth-of-type(5),
-.cell[data-highlight="6"] .memo-grid span:nth-of-type(6),
-.cell[data-highlight="7"] .memo-grid span:nth-of-type(7),
-.cell[data-highlight="8"] .memo-grid span:nth-of-type(8),
-.cell[data-highlight="9"] .memo-grid span:nth-of-type(9) {
-    font-weight: bold;
-    color: var(--accent-color);
-}
-
-/* Shared 9x9 mini-grid (used by preview and manual correction) */
-.sudoku-mini-grid {
-    display: grid;
-    grid-template-columns: repeat(9, 32px);
-    grid-template-rows: repeat(9, 32px);
-    width: 292px;
-    height: 292px;
-    background-color: var(--panel-bg);
-    border: 2px solid var(--text-color);
-    overflow: hidden;
-}
-
-/* 3x3 block bold borders (works for both direct children and nested elements) */
-.sudoku-mini-grid> :nth-child(3n) {
-    border-right: 2px solid var(--text-color);
-}
-
-.sudoku-mini-grid> :nth-child(9n) {
-    border-right: 1px solid var(--border-color);
-}
-
-.sudoku-mini-grid> :nth-child(n+19):nth-child(-n+27),
-.sudoku-mini-grid> :nth-child(n+46):nth-child(-n+54) {
-    border-bottom: 2px solid var(--text-color);
-}
-
-
-.preview-cell {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    border: 1px solid var(--border-color);
-    font-family: 'Outfit', sans-serif;
-    font-weight: normal;
-    font-size: 1.2rem;
-    color: var(--text-color);
-    box-sizing: border-box;
-    width: 32px;
-    height: 32px;
-}
-
-.preview-cell.unrecognized {
-    color: var(--text-color);
-    font-size: 1.4rem;
-    background-color: rgba(128, 128, 128, 0.1);
-}
-
-/* ===== Mobile Media Query ===== */
-@media screen and (max-width: 720px) {
-
-    /* Board: full width without horizontal overflow */
+    /* Board (fixed size) */
     .board {
-        box-sizing: border-box;
-        --cell-size: calc((var(--board-width, 100vw) - 12px) / 9);
-        /* 4px borders + 8px gaps */
-        width: 100%;
-        grid-template-columns: repeat(9, var(--cell-size));
-        grid-template-rows: repeat(9, var(--cell-size));
+        display: grid;
+        grid-template-columns: repeat(9, 48px);
+        grid-template-rows: repeat(9, 48px);
+        gap: 1px;
+        background-color: var(--border-color);
+        border: 2px solid var(--border-box);
+        border-radius: var(--radius-sm);
+        /* Removed box-shadow: inset - high repaint cost on legacy mobile GPU */
+        margin: 0;
     }
 
-    /* Cell font size: Dynamically calculated */
     .cell {
-        font-size: calc(var(--cell-size) * 0.55);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: var(--cell-bg);
+        font-size: 1.3rem;
+        font-weight: bold;
+        color: var(--text-user);
+        cursor: pointer;
+        position: relative;
+        user-select: none;
+        touch-action: manipulation;
     }
 
-    /* Number overlay inherits cell font-size, but set explicitly for ::after */
+    .cell.given {
+        color: var(--text-given);
+    }
+
+    .cell.selected {
+        background-color: var(--cell-selected);
+        /* outline instead of box-shadow: inset — avoids GPU repaint on every tap */
+        outline: 2px solid var(--accent-color);
+        outline-offset: -2px;
+    }
+
+    .cell.highlighted {
+        background-color: var(--cell-highlight);
+    }
+
+    .cell.same-number {
+        background-color: var(--cell-same-num);
+    }
+
+    .cell.error {
+        background-color: var(--cell-error);
+        color: var(--text-error);
+    }
+
+    .board .cell:nth-child(3n):not(:nth-child(9n)) {
+        border-right: 2px solid var(--border-box);
+    }
+
+    .board .cell:nth-child(n+19):nth-child(-n+27),
+    .board .cell:nth-child(n+46):nth-child(-n+54) {
+        border-bottom: 2px solid var(--border-box);
+    }
+
+
+    /* Cell number display via CSS ::after (no textContent DOM ops on cache hit) */
     .cell::after {
-        font-size: calc(var(--cell-size) * 0.55);
+        content: attr(data-val);
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        font-weight: bold;
+        color: inherit;
+        pointer-events: none;
+        z-index: 1;
+        /* Overlay above memo-grid (z-index: 0) */
+    }
+
+    /* Memo display: always present in DOM, hidden behind value overlay when data-val is set */
+    .cell .memo-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(3, 1fr);
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+        z-index: 0;
+        /* Behind ::after number overlay */
     }
 
     .cell .memo-grid span {
-        font-size: calc(var(--cell-size) * 0.25);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 0.8rem;
+        color: var(--mode-label-color);
+        font-weight: 500;
     }
-}
+
+    /*
+       Advanced Highlight Engine:
+       Uses data-highlight attribute to highlight both determined numbers
+       (same-number class) and candidate memos (CSS selectors) simultaneously.
+    */
+    .cell[data-highlight="1"] .memo-grid span:nth-of-type(1),
+    .cell[data-highlight="2"] .memo-grid span:nth-of-type(2),
+    .cell[data-highlight="3"] .memo-grid span:nth-of-type(3),
+    .cell[data-highlight="4"] .memo-grid span:nth-of-type(4),
+    .cell[data-highlight="5"] .memo-grid span:nth-of-type(5),
+    .cell[data-highlight="6"] .memo-grid span:nth-of-type(6),
+    .cell[data-highlight="7"] .memo-grid span:nth-of-type(7),
+    .cell[data-highlight="8"] .memo-grid span:nth-of-type(8),
+    .cell[data-highlight="9"] .memo-grid span:nth-of-type(9) {
+        font-weight: bold;
+        color: var(--accent-color);
+    }
+
+    /* Shared 9x9 mini-grid (used by preview and manual correction) */
+    .sudoku-mini-grid {
+        display: grid;
+        grid-template-columns: repeat(9, 32px);
+        grid-template-rows: repeat(9, 32px);
+        width: 292px;
+        height: 292px;
+        background-color: var(--panel-bg);
+        border: 2px solid var(--text-color);
+        overflow: hidden;
+    }
+
+    /* 3x3 block bold borders (works for both direct children and nested elements) */
+    .sudoku-mini-grid > :nth-child(3n) {
+        border-right: 2px solid var(--text-color);
+    }
+
+    .sudoku-mini-grid > :nth-child(9n) {
+        border-right: 1px solid var(--border-color);
+    }
+
+    .sudoku-mini-grid > :nth-child(n+19):nth-child(-n+27),
+    .sudoku-mini-grid > :nth-child(n+46):nth-child(-n+54) {
+        border-bottom: 2px solid var(--text-color);
+    }
+
+
+    .preview-cell {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border: 1px solid var(--border-color);
+        font-family: 'Outfit', sans-serif;
+        font-weight: normal;
+        font-size: 1.2rem;
+        color: var(--text-color);
+        box-sizing: border-box;
+        width: 32px;
+        height: 32px;
+    }
+
+    .preview-cell.unrecognized {
+        color: var(--text-color);
+        font-size: 1.4rem;
+        background-color: rgba(128, 128, 128, 0.1);
+    }
+
+    /* ===== Mobile Media Query ===== */
+    @media screen and (max-width: 720px) {
+
+        /* Board: full width without horizontal overflow */
+        .board {
+            box-sizing: border-box;
+            --cell-size: calc((var(--board-width, 100vw) - 12px) / 9);
+            /* 4px borders + 8px gaps */
+            width: 100%;
+            grid-template-columns: repeat(9, var(--cell-size));
+            grid-template-rows: repeat(9, var(--cell-size));
+        }
+
+        /* Cell font size: Dynamically calculated */
+        .cell {
+            font-size: calc(var(--cell-size) * 0.55);
+        }
+
+        /* Number overlay inherits cell font-size, but set explicitly for ::after */
+        .cell::after {
+            font-size: calc(var(--cell-size) * 0.55);
+        }
+
+        .cell .memo-grid span {
+            font-size: calc(var(--cell-size) * 0.25);
+        }
+    }
+
+} /* end @layer components */
