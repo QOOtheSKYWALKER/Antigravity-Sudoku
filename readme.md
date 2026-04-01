@@ -17,6 +17,7 @@ Antigravity Sudoku is a high-performance, web-based Sudoku application that feat
 - **Computer Vision**:
     - **OpenCV.js**: Grid detection, image preprocessing, template matching for cell grouping.
     - **Tesseract.js**: Optical Character Recognition (OCR) for digit extraction.
+- **Modern CSS Architecture**: Employs **CSS `@layer`** (`base`, `components`, `states`) for cascade priority management. Utilizes a **2-tier design token system** (Primitive Palette & Semantic Tokens).
 - **Persistence**: `localStorage` (language, theme, manual correction cache).
 
 ### 1.2 File Structure
@@ -26,7 +27,8 @@ sudoku/
 ├── index.html            # About page (landing)
 ├── play.html             # Main game entry point
 ├── heatmap.html          # Heatmap tool
-├── css/                  # Layout, board, and UI styles
+├── css/                  # Structured style files (layered architecture)
+│   └── tokens.css        # Source of truth: Design tokens and @layer definitions
 └── js/                   # All logic scripts
     ├── main.js           # Consolidated UI & Orchestrator
     ├── solver.js         # Core Engine (DLX, BitUtils)

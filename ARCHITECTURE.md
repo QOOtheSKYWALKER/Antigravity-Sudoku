@@ -14,11 +14,13 @@ sudoku/
 ├── index.html            # About page (landing)
 ├── play.html             # Main game entry point
 ├── heatmap.html          # Heatmap analysis tool
-├── css/                  # Separated style files
-│   ├── base.css          # Core variables, themes, and base layout
-│   ├── board.css         # Board, cell, and grid styles
-│   ├── ui.css            # Buttons, keypad, and general UI controls
-│   └── modal.css         # All modal and dialog styles
+├── css/                  # Modern CSS architecture using @layers
+│   ├── tokens.css        # Centralized design tokens (Primitive & Semantic variables)
+│   ├── base.css          # Reset styles and global layout within @layer base
+│   ├── board.css         # Game board and cell styles within @layer components
+│   ├── ui.css            # UI components (buttons, etc.) within @layer components/states
+│   ├── modal.css         # Modal and dialog styles within @layer components
+│   └── heatmap.css       # Heatmap specific styles within @layer components
 └── js/                   # All logic scripts
     ├── main.js           # Consolidated UI logic & Worker Orchestrator
     ├── solver.js         # Engine core (DLX, BitUtils, LogicalSolver base)
@@ -49,12 +51,17 @@ js/solver.js → js/solver-techniques.js → js/i18n.js → js/main.js → js/oc
 
 ---
 
-### `css/ (Separated Style Files)`
-All visual styling in vanilla CSS, partitioned for maintainability:
-- `base.css`: Implements two themes via CSS custom properties, reset styles, and base layout.
-- `board.css`: Covers game board layout, cell states, and memo grid.
-- `ui.css`: Handles buttons, keypad, and general UI controls.
-- `modal.css`: Manages all modal and dialog components.
+### `css/ (Modern Layered Styles)`
+The application uses a robust CSS architecture based on **CSS `@layer`** (`base`, `components`, `states`) to manage cascade priority without `!important` hacks. 
+
+- `tokens.css`: **The source of truth for design.** Defines a 2-tier variable system:
+    - **Primitive Palette**: Specific color values (e.g., `--palette-blue-300`).
+    - **Semantic Tokens**: Purpose-driven aliases (e.g., `--btn-bg`, `--accent-color`).
+- `base.css`: Contains reset styles and high-level layout (`@layer base`).
+- `board.css`: Handles the 9x9 grid, cell rendering, and memo displays (`@layer components`).
+- `ui.css`: Manages interactive components like buttons and toggles, separating structural styles (`@layer components`) from state-dependent styles like `.active` or `:disabled` (`@layer states`).
+- `modal.css`: Styling for the OCR upload and manual correction dialogs (`@layer components`).
+- `heatmap.css`: Layout and visualization for the heatmap analysis tool (`@layer components`).
 
 ---
 
