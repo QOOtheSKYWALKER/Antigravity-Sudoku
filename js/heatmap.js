@@ -83,7 +83,7 @@ function updateMiniBoard(grid) {
     }
     document.getElementById('hints-val').textContent = currentCluesCount;
 
-    // --- NEW: Global Techniques Display ---
+    // --- Global Techniques Display ---
     const globalTechEl = document.getElementById('global-techniques');
     if (globalTechEl) {
         // Direct engine calls for global evaluation
@@ -153,9 +153,7 @@ function drawConnections() {
     const boardRect = connectionLayer.getBoundingClientRect();
 
     // 1. Draw Persistent Red Lines
-    // These connect EMPTY slots (i) to their corresponding INF cells (j)
     for (const [i, j] of persistentConnections) {
-        // Only draw if 'i' is actually empty and 'j' is actually a hint
         if (currentGrid[i] !== 0 || currentGrid[j] === 0) continue;
 
         const cellA = dashBoard.children[i];
@@ -207,7 +205,6 @@ function updateDashboardWithResults(results) {
     const cells = dashBoard.children;
     for (let i = 0; i < 81; i++) {
         const c = cells[i];
-        // If the cell was removed, clean it up
         if (currentGrid[i] === 0) {
             c.className = 'cell empty';
             c.style.backgroundColor = '';
@@ -222,10 +219,8 @@ function updateDashboardWithResults(results) {
 
         if (!res) continue;
 
-        // 1. Main Text: Difficulty Level (e.g., MEDIUM)
         c.children[0].textContent = (res.difficulty || 'basic').toUpperCase();
 
-        // 2. Sub Text: INF status and Lock Count increase (Now uniform "INF +X")
         const sign = res.lockCount >= 0 ? '+' : '';
         c.children[1].textContent = `INF ${sign}${res.lockCount}`;
 
@@ -263,20 +258,16 @@ function handleCellClick(index) {
     pushState();
 
     if (currentGrid[index] !== 0) {
-        // COMMITTING RED LINES:
-        // Move blue dependencies for this index into red persistent connections
         commitPersistentConnections(index);
         if (peerIndex !== -1 && peerIndex !== index) {
             commitPersistentConnections(peerIndex);
         }
 
-        // Remove cell
         currentGrid[index] = 0;
         if (peerIndex !== -1 && peerIndex !== index) {
             currentGrid[peerIndex] = 0;
         }
     } else {
-        // Restore cell from original solution
         currentGrid[index] = solutionGrid[index];
         if (peerIndex !== -1 && peerIndex !== index) {
             currentGrid[peerIndex] = solutionGrid[peerIndex];
@@ -288,7 +279,6 @@ function handleCellClick(index) {
 }
 
 function commitPersistentConnections(sourceIndex) {
-    // Collect specific dependencies for the sourceIndex from the CURRENT blue lines
     for (const [i, j] of currentConnections) {
         if (i === sourceIndex) {
             persistentConnections.push([i, j]);
@@ -303,10 +293,9 @@ async function requestEvaluation() {
     clearConnections();
     statusMsg.textContent = 'Calculating...';
 
-    // UI Yielding Helper
     const yieldUI = () => new Promise(resolve => setTimeout(resolve, 0));
 
-    // 1. Base evaluation (direct エンジン 呼び出し)
+    // 1. Base evaluation
     const baseCount = SudokuDLX.countSolutions(currentGrid);
     let baseDifficulty = 'INF';
 
@@ -358,7 +347,6 @@ async function requestEvaluation() {
             results[i] = { isInf, difficulty: diff, lockCount: 0 };
 
             if (count === 1) {
-                // Look-ahead: Find which clues become INF when 'i' is removed
                 let newLocks = 0;
                 for (let j = 0; j < 81; j++) {
                     if (gridCopy[j] !== 0) {
@@ -367,7 +355,6 @@ async function requestEvaluation() {
                         const checkJ = SudokuDLX.countSolutions(gridCopy);
                         if (checkJ > 1) {
                             newLocks++;
-                            // If it wasn't INF before, then it's a new dependency
                             if (!initialInfCells.has(j)) {
                                 currentConnections.push([i, j]);
                             }
@@ -375,13 +362,11 @@ async function requestEvaluation() {
                         gridCopy[j] = valJ;
                     }
                 }
-                // Record the INCREASE (+X)
                 results[i].lockCount = newLocks - currentInfCount;
             }
 
             gridCopy[i] = val;
 
-            // Yield to browser UI more frequently (every 2 cells) due to N^2 complexity
             if (i % 2 === 0) {
                 statusMsg.textContent = `Analyzing Strategy... ${Math.round((i / 81) * 100)}%`;
                 await yieldUI();
@@ -389,16 +374,40 @@ async function requestEvaluation() {
         }
     }
 
-
     isCalculating = false;
     statusMsg.innerHTML = `Diff: ${baseDifficulty}`;
     updateDashboardWithResults(results);
     drawConnections();
-
 }
 
-
-
+/**
+ * ランダムシードを埋め込んだ上でsolveAndFillを呼び、
+ * 毎回異なる完全盤面をUint8Array形式で生成して返す。
+ * generator.jsと同じ方式: 有効なランダム配置を5つ置いてからDLXで補完する。
+ * @param {Uint8Array} outGrid - 結果を書き込むUint8Array(81)
+ */
+function randomSolveAndFill(outGrid) {
+    // Uint32Arrayのシードグリッドを用意（DLXはUint32も受け付ける）
+    const seedBits = new Uint32Array(81);
+    let placed = 0;
+    let guard = 0;
+    while (placed < 5 && guard < 200) {
+        guard++;
+        const idx = Math.floor(Math.random() * 81);
+        const val = Math.floor(Math.random() * 9) + 1;
+        if (seedBits[idx] !== 0) continue; // 既に配置済み
+        if (SudokuBitUtils.isValid(seedBits, idx, val)) {
+            seedBits[idx] = SudokuBitUtils.createSolved(val, true);
+            placed++;
+        }
+    }
+    // DLXで残りを補完
+    SudokuDLX.solveAndFill(seedBits);
+    // Uint8Arrayに変換して返す
+    for (let i = 0; i < 81; i++) {
+        outGrid[i] = SudokuBitUtils.getValue(seedBits[i]);
+    }
+}
 
 btnStart.addEventListener('click', async () => {
     isCalculating = true;
@@ -410,35 +419,24 @@ btnStart.addEventListener('click', async () => {
     const solveGrid = new Uint8Array(81);
 
     if (mode === 'checkered') {
-        let found = false;
-        // Try to find a solution that remains unique when checkered
-        for (let tries = 0; tries < 100; tries++) {
-            solveGrid.fill(0);
-            SudokuDLX.solveAndFill(solveGrid);
-            const testGrid = new Uint8Array(solveGrid);
+        const MAX_TRIES = 20;
+        for (let tries = 0; tries < MAX_TRIES; tries++) {
+            randomSolveAndFill(solveGrid);
+            const testGrid = new Uint8Array(81);
             for (let i = 0; i < 81; i++) {
-                const r = Math.floor(i / 9);
-                const c = i % 9;
-                if ((r + c) % 2 !== 0) testGrid[i] = 0;
+                const r = Math.floor(i / 9), c = i % 9;
+                testGrid[i] = ((r + c) % 2 === 0) ? solveGrid[i] : 0;
             }
-            if (SudokuDLX.countSolutions(testGrid) === 1) {
+
+            if (SudokuDLX.countSolutions(testGrid) === 1 || tries === MAX_TRIES - 1) {
                 grid.set(testGrid);
-                found = true;
                 break;
             }
         }
-        // Fallback
-        if (!found) {
-            solveGrid.fill(0);
-            SudokuDLX.solveAndFill(solveGrid);
-            grid.set(solveGrid);
-            for (let i = 0; i < 81; i++) {
-                const r = Math.floor(i / 9), c = i % 9;
-                if ((r + c) % 2 !== 0) grid[i] = 0;
-            }
-        }
+
     } else {
-        SudokuDLX.solveAndFill(solveGrid);
+        // Full モード: ランダム化した完全盤面をそのまま使用
+        randomSolveAndFill(solveGrid);
         grid.set(solveGrid);
     }
 
