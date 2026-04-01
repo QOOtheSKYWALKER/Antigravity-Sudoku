@@ -412,7 +412,7 @@ btnStart.addEventListener('click', async () => {
     if (mode === 'checkered') {
         let found = false;
         // Try to find a solution that remains unique when checkered
-        for (let tries = 0; tries < 20; tries++) {
+        for (let tries = 0; tries < 100; tries++) {
             solveGrid.fill(0);
             SudokuDLX.solveAndFill(solveGrid);
             const testGrid = new Uint8Array(solveGrid);
