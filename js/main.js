@@ -1,7 +1,6 @@
-import { SudokuBitUtils, SudokuBitBoard, SudokuDLX, SudokuLogicalSolver, DIFFICULTY_RANK } from './solver.js';
-import { t, tTechnique, applyLanguage, currentLang } from './i18n.js';
+import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, DIFFICULTY_RANK } from './solver.js';
+import { t, tTechnique, applyLanguage } from './i18n.js';
 import { TECHNIQUES } from './solver-techniques.js';
-
 const Utils = SudokuBitUtils;
 
 let unifiedBoard = new Uint32Array(81);   // Primary board state
@@ -207,7 +206,7 @@ function clearToolHighlight() {
     btnRocket.classList.remove('active');
 }
 
-export function showSimpleAlert(message) {
+function showSimpleAlert(message) {
     window.alert(message);
     return Promise.resolve(true);
 }
@@ -255,7 +254,7 @@ function toggleMemoMode() {
 let isGenerating = false;
 let currentGenerationId = 0;
 
-export async function initGame(difficulty, preGeneratedResult = null) {
+async function initGame(difficulty, preGeneratedResult = null) {
     if (isGenerating) return;
     isGenerating = true;
     const myId = ++currentGenerationId;
@@ -372,7 +371,7 @@ function moveCell(direction) {
     scheduleRender();
 }
 
-export function updateUndoRedoButtons() {
+function updateUndoRedoButtons() {
     btnUndo.disabled = undoStack.length === 0;
     btnRedo.disabled = redoStack.length === 0;
 }
@@ -612,7 +611,7 @@ function handleRocket() {
         if (undoStack.length > MAX_HISTORY) undoStack.shift();
         redoStack = [];
         updateUndoRedoButtons();
-        
+
         SudokuBitUtils.updateErrorFlags(unifiedBoard);
         updateHighlight();
         renderBoard();
@@ -666,6 +665,7 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
     if (langSelect) langSelect.value = savedLang;
     applyTheme(savedTheme);
     applyLanguage(savedLang);
+    SudokuLogicalSolver.connectDictionary(TECHNIQUES);
     themeSelect?.addEventListener('change', (e) => applyTheme(e.target.value));
     langSelect?.addEventListener('change', (e) => applyLanguage(e.target.value));
     buildBoard();
@@ -675,5 +675,16 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
             if (window.getComputedStyle(dialog).pointerEvents === 'none') return;
             if (e.target === dialog) dialog.close();
         });
+    });
+
+    // OCR解析完了イベントを受け取り、UI処理を実行する
+    // ocr.jsは盤面データのみを返し、画面操作はここで行う
+    document.addEventListener('ocr:complete', async (e) => {
+        const { puzzle, technique } = e.detail;
+        const ocrModal = document.getElementById('ocr-main-modal');
+        ocrModal?.close();
+        await initGame('custom', { puzzle, technique });
+        updateUndoRedoButtons();
+        await showSimpleAlert(t('ocrImportComplete'));
     });
 })();

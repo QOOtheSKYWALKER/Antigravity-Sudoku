@@ -4,7 +4,6 @@
 import { SudokuBitUtils, SudokuLogicalSolver, SudokuDLX } from './solver.js';
 import { t } from './i18n.js';
 import { GridDetector } from './ocr-engine.js';
-import { initGame, showSimpleAlert, updateUndoRedoButtons } from './main.js';
 
 const btnOcrOpen = document.getElementById('btn-ocr-open');
 const ocrModal = document.getElementById('ocr-main-modal');
@@ -411,18 +410,13 @@ function applyGridToBoardAndCloseModal(grid1D) {
         finalPuzzle[i] = SudokuBitUtils.setSolution(puzzleBits[i], solDigit);
     }
 
-    // Pass configuration back to the main controller
-    initGame('custom', {
-        puzzle: finalPuzzle,
-        technique: resultEval.technique
-    });
-
-    ocrModal.close();
-    hideAllOcrStates();
-    updateUndoRedoButtons();
-    setTimeout(async () => {
-        await showSimpleAlert(t('ocrImportComplete'));
-    }, 100);
+    // 解析結果をイベントで通知し、UI処理はmain.jsに委ねる
+    document.dispatchEvent(new CustomEvent('ocr:complete', {
+        detail: {
+            puzzle: finalPuzzle,
+            technique: resultEval.technique
+        }
+    }));
 }
 
 

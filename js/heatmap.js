@@ -1,3 +1,6 @@
+import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, DIFFICULTY_RANK } from './solver.js';
+import { TECHNIQUES } from './solver-techniques.js';
+SudokuLogicalSolver.connectDictionary(TECHNIQUES);
 const dashBoard = document.getElementById('dashboard-board');
 const miniBoard = document.getElementById('mini-board');
 const btnStart = document.getElementById('btn-start');

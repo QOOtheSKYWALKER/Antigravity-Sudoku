@@ -3,11 +3,12 @@
  * Integrates heavy generation algorithms and worker entry point.
  */
 
-import { SudokuBitUtils, SudokuBitBoard, SudokuDLX, SudokuLogicalSolver, DIFFICULTY_RANK } from './solver.js';
+import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, DIFFICULTY_RANK } from './solver.js';
 import { TECHNIQUES } from './solver-techniques.js';
 
 // Initialize memory for the worker context
 SudokuDLX.allocateMemory();
+SudokuLogicalSolver.connectDictionary(TECHNIQUES);
 const evalSandbox = SudokuLogicalSolver.createSandbox();
 
 /**

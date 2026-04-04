@@ -1187,4 +1187,4 @@ export const TECHNIQUES = [
 
 
 // Connect this dictionary to the logical engine
-SudokuLogicalSolver.connectDictionary(TECHNIQUES);
+// SudokuLogicalSolver.connectDictionary(TECHNIQUES);
