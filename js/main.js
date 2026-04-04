@@ -1,4 +1,4 @@
-import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, DIFFICULTY_RANK } from './solver.js';
+import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, nameToRank } from './solver.js';
 import { t, tTechnique, applyLanguage } from './i18n.js';
 import { TECHNIQUES } from './solver-techniques.js';
 const Utils = SudokuBitUtils;
@@ -48,7 +48,8 @@ class SudokuOrchestrator {
     static results = [];
     static allResults = [];
     static activeTaskId = 0;
-    static activeDifficulty = '';
+    static activeDifficulty = '';  // UI表示・localStorage用
+    static activeRank = 0;          // worker通信用（数値）
     static resolveCurrent = null;
     static finished = false;
     static graceTimer = null;
@@ -70,6 +71,7 @@ class SudokuOrchestrator {
         this.results = [];
         this.allResults = [];
         this.activeDifficulty = difficulty;
+        this.activeRank = nameToRank(difficulty);
         this.activeTaskId = Date.now();
         this.finished = false;
 
@@ -82,7 +84,7 @@ class SudokuOrchestrator {
                 this.workers[i].onmessage = this.onWorkerMessage.bind(this);
                 this.workers[i].postMessage({
                     type: 'GENERATE',
-                    difficulty,
+                    rank: this.activeRank,
                     taskId: this.activeTaskId,
                     count: Math.max(count, (i === 0 ? 1 : 0)),
                     patternType: -1
@@ -102,13 +104,12 @@ class SudokuOrchestrator {
         for (const result of results) {
             if (!result || !result.puzzle) continue;
 
-            // Worker側で詳細評価済みのためrichEvalは不要
-            const targetRankValue = DIFFICULTY_RANK[this.activeDifficulty] || 0;
-            const resRankValue = DIFFICULTY_RANK[result.difficulty] || 0;
+            // workerはrankを数値で返すため変換不要
+            const resRankValue = result.rank || 0;
 
             this.allResults.push(result);
 
-            if (resRankValue === targetRankValue) {
+            if (resRankValue === this.activeRank) {
                 this.results.push(result);
                 if (this.resolveCurrent && this.results.length >= this.targetCount) {
                     this.finalize();
@@ -122,7 +123,7 @@ class SudokuOrchestrator {
         if (!this.finished) {
             worker.postMessage({
                 type: 'GENERATE',
-                difficulty: this.activeDifficulty,
+                rank: this.activeRank,
                 taskId: this.activeTaskId,
                 count: 1,
                 patternType: -1

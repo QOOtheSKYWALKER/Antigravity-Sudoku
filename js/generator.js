@@ -3,7 +3,7 @@
  * Integrates heavy generation algorithms and worker entry point.
  */
 
-import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, DIFFICULTY_RANK } from './solver.js';
+import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver } from './solver.js';
 import { TECHNIQUES } from './solver-techniques.js';
 
 // Initialize memory for the worker context
@@ -15,11 +15,11 @@ const evalSandbox = SudokuLogicalSolver.createSandbox();
  * Worker Entry Point
  */
 self.onmessage = function (e) {
-    const { type, taskId, difficulty, patternType, grid, targetRank } = e.data;
+    const { type, taskId, rank, patternType, grid, targetRank } = e.data;
 
     try {
         if (type === 'GENERATE') {
-            const result = SudokuGenerator.generateSinglePattern(difficulty, patternType);
+            const result = SudokuGenerator.generateSinglePattern(rank, patternType);
             if (result) {
                 self.postMessage({ type: 'GENERATE_SUCCESS', taskId, result });
             } else {
@@ -38,10 +38,9 @@ self.onmessage = function (e) {
  * Sudoku Generation Logic (Moved from solver.js)
  */
 class SudokuGenerator {
-    static generateSinglePattern(difficulty, patternType = 0) {
+    static generateSinglePattern(targetRank, patternType = 0) {
         SudokuLogicalSolver.init();
         SudokuDLX.init();
-        const targetRank = DIFFICULTY_RANK[difficulty] || 0;
         let bestResult = null;
 
         for (let trial = 0; trial < 50; trial++) {
@@ -194,15 +193,16 @@ class SudokuGenerator {
                 puzzle: resultPuzzle,
                 hints: resultClues.length,
                 difficulty: finalEval.difficulty,
+                rank: finalEval.rank,
                 technique: finalEval.technique,
                 techniqueCounts: finalEval.techniqueCounts,
                 patternName: ['Symmetry', 'Mirror', 'Checker', 'Random'][effectivePattern] || 'Random'
             };
 
-            if (DIFFICULTY_RANK[result.difficulty] === targetRank) return result;
-            if (!bestResult || Math.abs(DIFFICULTY_RANK[result.difficulty] - targetRank) < Math.abs(DIFFICULTY_RANK[bestResult.difficulty] - targetRank)) {
+            if (result.rank === targetRank) return result;
+            if (!bestResult || Math.abs(result.rank - targetRank) < Math.abs(bestResult.rank - targetRank)) {
                 bestResult = result;
-            } else if (DIFFICULTY_RANK[result.difficulty] === DIFFICULTY_RANK[bestResult.difficulty] && result.hints < bestResult.hints) {
+            } else if (result.rank === bestResult.rank && result.hints < bestResult.hints) {
                 bestResult = result;
             }
         }
@@ -211,7 +211,7 @@ class SudokuGenerator {
 
     static _runReduction(initialClues, initialHash, targetRank, iterLimit, fillScratchBitGrid) {
         let bestClues = initialClues;
-        const currentRank = (clues) => DIFFICULTY_RANK[SudokuLogicalSolver.evaluate(fillScratchBitGrid(clues), targetRank).difficulty || 'basic'];
+        const currentRank = (clues) => SudokuLogicalSolver.evaluate(fillScratchBitGrid(clues), targetRank).rank ?? 1;
 
         if (currentRank(initialClues) === targetRank) bestClues = initialClues;
 

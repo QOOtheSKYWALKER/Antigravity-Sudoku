@@ -2,7 +2,8 @@
  * High-Performance DLX (Dancing Links) Solver.
  */
 
-export const DIFFICULTY_RANK = { 'basic': 1, 'easy': 2, 'medium': 3, 'hard': 4 };
+import { rankToName, nameToRank } from './solver-difficulty.js';
+export { nameToRank } from './solver-difficulty.js';
 
 /**
  * Unified Bit Representation Utility for Sudoku Cells.
@@ -798,7 +799,7 @@ export class SudokuLogicalSolver {
         return {
             solved,
             difficulty,
-            rank: DIFFICULTY_RANK[difficulty] || 1,
+            rank: nameToRank(difficulty) || 1,
             technique,
             techniqueCounts
         };
@@ -906,7 +907,7 @@ function getDifficultyLevel(log) {
 
     for (const item of log) {
         const level = (TECHNIQUE_LEVELS && TECHNIQUE_LEVELS[item.technique]) || 'basic';
-        const rank = DIFFICULTY_RANK[level] || 1;
+        const rank = nameToRank(level) || 1;
 
         if (rank > maxRank) {
             maxRank = rank;
@@ -914,7 +915,7 @@ function getDifficultyLevel(log) {
         }
     }
 
-    const finalLevel = Object.keys(DIFFICULTY_RANK).find(key => DIFFICULTY_RANK[key] === maxRank) || 'basic';
+    const finalLevel = rankToName(maxRank);
     return {
         level: finalLevel,
         technique: bestItem ? bestItem.technique : 'Naked Single'
@@ -1019,7 +1020,7 @@ SudokuLogicalSolver.connectDictionary = function (techniques) {
 
     TECHNIQUE_LEVELS = {};
     for (const tech of techniques) {
-        const level = Object.keys(DIFFICULTY_RANK).find(key => DIFFICULTY_RANK[key] === tech.rank) || 'basic';
+        const level = rankToName(tech.rank);
         TECHNIQUE_LEVELS[tech.name] = level;
     }
     TECHNIQUE_LEVELS['Locked Candidates (Pointing)'] = 'easy';
