@@ -1,4 +1,4 @@
-import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, nameToRank } from './solver.js';
+import { SudokuBitUtils, SudokuLogicalSolver, nameToRank } from './solver.js';
 import { t, tTechnique, applyLanguage } from './i18n.js';
 import { TECHNIQUES } from './solver-techniques.js';
 const Utils = SudokuBitUtils;
@@ -17,7 +17,7 @@ let undoStack = [];
 let redoStack = [];
 
 // Initial memory allocation
-SudokuDLX.allocateMemory();
+// SudokuDLX.allocateMemory();
 const evalSandbox = SudokuLogicalSolver.createSandbox();
 
 // Render cache

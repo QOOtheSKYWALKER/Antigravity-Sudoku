@@ -17,7 +17,8 @@ const progressBar = document.getElementById('ocr-progress-bar');
 const progressFill = document.getElementById('ocr-progress-fill');
 // messageEl is shared from script.js global scope
 
-
+// Initial memory allocation
+SudokuDLX.allocateMemory();
 
 
 let uploadedImage = null;
