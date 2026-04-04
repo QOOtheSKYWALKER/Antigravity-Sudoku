@@ -2,8 +2,7 @@
  * High-Performance DLX (Dancing Links) Solver.
  */
 
-import { rankToName, nameToRank } from './solver-difficulty.js';
-export { nameToRank } from './solver-difficulty.js';
+import { rankToName } from './solver-difficulty.js';
 
 /**
  * Unified Bit Representation Utility for Sudoku Cells.
@@ -785,21 +784,21 @@ export class SudokuLogicalSolver {
     }
 
     solveByRank(maxRank) {
-        const finalRank = LogicalRules.analyzeFull(this);
+        const finalRank = LogicalRules.analyzeFull(this, maxRank);
         const solved = this.isSolved();
         const info = this.getDifficultyInfo();
-        let difficulty = info.level;
+        let rank = info.rank;
         let technique = info.technique;
         const techniqueCounts = this.getTechniqueCounts();
 
         if (!solved) {
-            difficulty = 'hard';
+            rank = 4; // Hard (Extreme)
             technique = 'Extreme';
         }
         return {
             solved,
-            difficulty,
-            rank: nameToRank(difficulty) || 1,
+            difficulty: rankToName(rank),
+            rank,
             technique,
             techniqueCounts
         };
@@ -900,14 +899,13 @@ const LogicalRules = {
  * Summarize human-readable difficulty from a difficultyLog
  */
 function getDifficultyLevel(log) {
-    if (!log || log.length === 0) return { level: 'basic', technique: 'Naked Single' };
+    if (!log || log.length === 0) return { rank: 1, technique: 'Naked Single' };
 
     let maxRank = -1;
     let bestItem = null;
 
     for (const item of log) {
-        const level = (TECHNIQUE_LEVELS && TECHNIQUE_LEVELS[item.technique]) || 'basic';
-        const rank = nameToRank(level) || 1;
+        const rank = (TECHNIQUE_LEVELS && TECHNIQUE_LEVELS[item.technique]) || 1;
 
         if (rank > maxRank) {
             maxRank = rank;
@@ -915,9 +913,8 @@ function getDifficultyLevel(log) {
         }
     }
 
-    const finalLevel = rankToName(maxRank);
     return {
-        level: finalLevel,
+        rank: maxRank,
         technique: bestItem ? bestItem.technique : 'Naked Single'
     };
 }
@@ -1020,11 +1017,10 @@ SudokuLogicalSolver.connectDictionary = function (techniques) {
 
     TECHNIQUE_LEVELS = {};
     for (const tech of techniques) {
-        const level = rankToName(tech.rank);
-        TECHNIQUE_LEVELS[tech.name] = level;
+        TECHNIQUE_LEVELS[tech.name] = tech.rank;
     }
-    TECHNIQUE_LEVELS['Locked Candidates (Pointing)'] = 'easy';
-    TECHNIQUE_LEVELS['Locked Candidates (Claiming)'] = 'easy';
+    TECHNIQUE_LEVELS['Locked Candidates (Pointing)'] = 2;
+    TECHNIQUE_LEVELS['Locked Candidates (Claiming)'] = 2;
 
     for (const tech of techniques) {
         SudokuLogicalSolver.prototype[tech.id] = function () {

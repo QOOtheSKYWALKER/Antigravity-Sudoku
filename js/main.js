@@ -1,4 +1,5 @@
-import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, nameToRank } from './solver.js';
+import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver } from './solver.js';
+import { nameToRank } from './solver-difficulty.js';
 import { t, tTechnique, applyLanguage } from './i18n.js';
 import { TECHNIQUES } from './solver-techniques.js';
 const Utils = SudokuBitUtils;
