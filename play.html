@@ -18,7 +18,8 @@
             <div class="title-bar">
                 <h1><a href="index.html" class="title-link" title="概要ページ">SUDOKU</a></h1>
                 <div class="difficulty-buttons">
-                    <button id="btn-ocr-open" class="action-btn btn-rocket-color" data-i18n="importOcr" title="画像を読み込んで解析">📷 取込</button>
+                    <button id="btn-ocr-open" class="action-btn btn-rocket-color" data-i18n="importOcr"
+                        title="画像を読み込んで解析">📷 取込</button>
                     <button id="btn-easy" class="diff-btn active" data-level="easy">Easy</button>
                     <button id="btn-medium" class="diff-btn" data-level="medium">Medium</button>
                     <button id="btn-hard" class="diff-btn" data-level="hard">Hard</button>
@@ -168,12 +169,9 @@
     </dialog>
 
 
-    <script src="js/solver.js"></script>
-    <script src="js/solver-techniques.js"></script>
-    <script src="js/i18n.js"></script>
-    <script src="js/main.js"></script>
-    <script src="js/ocr-engine.js"></script>
-    <script src="js/ocr.js"></script>
+    <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/ocr-engine.js"></script>
+    <script type="module" src="js/ocr.js"></script>
 </body>
 
 </html>

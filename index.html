@@ -43,7 +43,9 @@
             <div class="feature-card">
                 <span class="feature-icon">🧠</span>
                 <h3 data-i18n="feat1Title">第2世代 問題生成エンジン</h3>
-                <p data-i18n="feat1Desc">「地ならし（Smoothing）」と「探索（Exploration）」の2フェーズによる革新的アルゴリズムを搭載。ヒント数を最小22個まで削ぎ落としつつ、解きごたえのある高品質な問題を爆速で生成します。</p>
+                <p data-i18n="feat1Desc">
+                    「地ならし（Smoothing）」と「探索（Exploration）」の2フェーズによる革新的アルゴリズムを搭載。ヒント数を最小22個まで削ぎ落としつつ、解きごたえのある高品質な問題を爆速で生成します。
+                </p>
             </div>
             <div class="feature-card">
                 <span class="feature-icon">🎯</span>
@@ -53,7 +55,8 @@
             <div class="feature-card">
                 <span class="feature-icon">🚀</span>
                 <h3 data-i18n="feat3Title">ロケットボタン</h3>
-                <p data-i18n="feat3Desc">1回押すとNaked Single / Hidden Singleで確定できるセルを自動入力。手順が進まない場合、空白セルがあれば候補メモを全入力・剪定します。</p>
+                <p data-i18n="feat3Desc">1回押すとNaked Single / Hidden
+                    Singleで確定できるセルを自動入力。手順が進まない場合、空白セルがあれば候補メモを全入力・剪定します。</p>
             </div>
             <div class="feature-card">
                 <span class="feature-icon">📝</span>
@@ -173,8 +176,9 @@
         </p>
     </footer>
 
-    <script src="js/i18n.js"></script>
-    <script>
+    <script type="module">
+        import { currentLang, applyLanguage } from './js/i18n.js';
+
         // Initialize language
         const langSelect = document.getElementById('lang-select-landing');
         langSelect.value = currentLang;
