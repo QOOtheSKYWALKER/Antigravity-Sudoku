@@ -1,3 +1,5 @@
+import { SudokuLogicalSolver, SudokuBitUtils } from './solver.js';
+
 /**
  * Sudoku Solver Techniques Definition
  *
@@ -17,18 +19,15 @@
  */
 function sees(i, j) {
     if (i === j) return false;
-    const ri = Math.floor(i / 9), ci = i % 9;
-    const rj = Math.floor(j / 9), cj = j % 9;
-    if (ri === rj) return true;
-    if (ci === cj) return true;
-    if (Math.floor(ri / 3) === Math.floor(rj / 3) &&
-        Math.floor(ci / 3) === Math.floor(cj / 3)) return true;
-    return false;
+    const ri = (i / 9) | 0, ci = i % 9;
+    const rj = (j / 9) | 0, cj = j % 9;
+    if (ri === rj || ci === cj) return true;
+    return (((ri / 3) | 0) === ((rj / 3) | 0) && ((ci / 3) | 0) === ((cj / 3) | 0));
 }
 
 // ===== Technique Definitions =====
 
-const TECHNIQUES = [
+export const TECHNIQUES = [
 
     // ----- BASIC -----
 
@@ -582,6 +581,7 @@ const TECHNIQUES = [
         checkBitwise: (solver) => {
             const bb = solver.bb;
             for (let d = 1; d <= 9; d++) {
+                // Row-based
                 for (let r1 = 0; r1 < 8; r1++) {
                     const m1 = bb.rowMask(d, r1);
                     if (SudokuBitUtils.popcount(m1) !== 2) continue;
@@ -591,13 +591,12 @@ const TECHNIQUES = [
                         while (cm) {
                             const cb = cm & -cm; cm ^= cb;
                             const c = SudokuBitUtils.bitToDigit(cb) - 1;
-                            for (let r = 0; r < 9; r++) {
-                                if (r === r1 || r === r2) continue;
-                                if (!bb.has(0, r * 9 + c) && bb.has(d, r * 9 + c)) return true;
-                            }
+                            const colRowMask = bb.colMask(d, c);
+                            if (SudokuBitUtils.popcount(colRowMask & ~(1 << r1 | 1 << r2)) > 0) return true;
                         }
                     }
                 }
+                // Col-based
                 for (let c1 = 0; c1 < 8; c1++) {
                     const m1 = bb.colMask(d, c1);
                     if (SudokuBitUtils.popcount(m1) !== 2) continue;
@@ -605,12 +604,10 @@ const TECHNIQUES = [
                         if (bb.colMask(d, c2) !== m1) continue;
                         let rm = m1;
                         while (rm) {
-                            const rb = rm & -rb; rm ^= rb;
+                            const rb = rm & -rm; rm ^= rb;
                             const r = SudokuBitUtils.bitToDigit(rb) - 1;
-                            for (let c = 0; c < 9; c++) {
-                                if (c === c1 || c === c2) continue;
-                                if (!bb.has(0, r * 9 + c) && bb.has(d, r * 9 + c)) return true;
-                            }
+                            const rowColMask = bb.rowMask(d, r);
+                            if (SudokuBitUtils.popcount(rowColMask & ~(1 << c1 | 1 << c2)) > 0) return true;
                         }
                     }
                 }
@@ -1190,6 +1187,4 @@ const TECHNIQUES = [
 
 
 // Connect this dictionary to the logical engine
-if (typeof SudokuLogicalSolver !== 'undefined' && typeof TECHNIQUES !== 'undefined') {
-    SudokuLogicalSolver.connectDictionary(TECHNIQUES);
-}
+SudokuLogicalSolver.connectDictionary(TECHNIQUES);

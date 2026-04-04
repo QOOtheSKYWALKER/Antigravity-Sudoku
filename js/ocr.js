@@ -1,6 +1,10 @@
 // ============================================================================
 // OCR Module - Image Recognition & Board Import
 // ============================================================================
+import { SudokuBitUtils, SudokuLogicalSolver, SudokuDLX } from './solver.js';
+import { t } from './i18n.js';
+import { GridDetector } from './ocr-engine.js';
+import { initGame, showSimpleAlert, updateUndoRedoButtons } from './main.js';
 
 const btnOcrOpen = document.getElementById('btn-ocr-open');
 const ocrModal = document.getElementById('ocr-main-modal');
@@ -128,7 +132,6 @@ function loadOcrLibrariesV2() {
         const isReady = () => {
             if (typeof cv !== 'undefined') {
                 if (cv instanceof Promise) {
-                    // Replace the global promise with the resolved module once done
                     cv.then(target => { window.cv = target; }).catch(console.error);
                     return false;
                 }
@@ -139,6 +142,7 @@ function loadOcrLibrariesV2() {
             return false;
         };
 
+
         if (isReady()) {
             console.log("OCR Libraries are ready immediately");
             ocrLibrariesLoaded = true;
@@ -146,7 +150,7 @@ function loadOcrLibrariesV2() {
             return;
         }
 
-        // Dynamic Loading
+        // Load OpenCV dynamically (it typically exports window.cv)
         if (typeof cv === 'undefined' && !document.getElementById('opencv-script')) {
             console.log("Injecting OpenCV.js...");
             const s = document.createElement('script');
@@ -155,13 +159,15 @@ function loadOcrLibrariesV2() {
             s.async = true;
             document.head.appendChild(s);
         }
-        if (typeof Tesseract === 'undefined' && !document.getElementById('tesseract-script')) {
-            console.log("Injecting Tesseract.js...");
-            const s = document.createElement('script');
-            s.id = 'tesseract-script';
-            s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-            s.async = true;
-            document.head.appendChild(s);
+
+        // Load Tesseract via dynamic ESM import immediately
+        if (typeof Tesseract === 'undefined') {
+            console.log("Dynamically importing Tesseract.js module...");
+            import('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js')
+                .then((module) => {
+                    window.Tesseract = module.default || module;
+                })
+                .catch(err => console.error("Failed to load Tesseract:", err));
         }
 
         console.log("Waiting for OCR Libraries (CV/Tesseract)...");
@@ -392,40 +398,27 @@ function renderParsedPreview(grid1D, unrecognizedIndices = []) {
 
 function applyGridToBoardAndCloseModal(grid1D) {
     const isBit = (grid1D instanceof Uint32Array);
-    // Use the shared sandbox for consistent difficulty evaluation
-    const result = SudokuLogicalSolver.evaluate(grid1D, 4, evalSandbox);
+    const resultEval = SudokuLogicalSolver.evaluate(grid1D, 4);
 
-    // DLXによる正解生成もBitGridのまま実行
     const solBuffer = new Uint32Array(grid1D);
     SudokuDLX.solveAndFill(solBuffer);
-    
-    // unifiedBoardの初期化。grid1Dが既にBitGridならそのまま、そうでなければ変換
+
     const puzzleBits = isBit ? grid1D : SudokuBitUtils.fromUint8Array(grid1D, true);
+    const finalPuzzle = new Uint32Array(81);
 
     for (let i = 0; i < 81; i++) {
         const solDigit = SudokuBitUtils.getValue(solBuffer[i]);
-        // Given + Value + Solutionをセット。Bit 12-15に正解を埋め込む
-        unifiedBoard[i] = SudokuBitUtils.setSolution(puzzleBits[i], solDigit);
+        finalPuzzle[i] = SudokuBitUtils.setSolution(puzzleBits[i], solDigit);
     }
-    SudokuBitUtils.clearUnsolvedCandidates(unifiedBoard);
-    SudokuBitUtils.updateErrorFlags(unifiedBoard);
-    initialSnapshot.set(unifiedBoard);
 
-    undoStack = [];
-    redoStack = [];
-    selectedRow = 0;
-    selectedCol = 0;
-    lastInputNumber = 0;
-    rocketCount = 0;
-
-    const techLevel = result.technique;
-    messageEl.textContent = tTechnique(techLevel);
-    currentTechnique = techLevel;
+    // Pass configuration back to the main controller
+    initGame('custom', {
+        puzzle: finalPuzzle,
+        technique: resultEval.technique
+    });
 
     ocrModal.close();
     hideAllOcrStates();
-
-    renderBoard();
     updateUndoRedoButtons();
     setTimeout(async () => {
         await showSimpleAlert(t('ocrImportComplete'));

@@ -3,8 +3,8 @@
  * Integrates heavy generation algorithms and worker entry point.
  */
 
-importScripts('solver.js');
-importScripts('solver-techniques.js');
+import { SudokuBitUtils, SudokuBitBoard, SudokuDLX, SudokuLogicalSolver, DIFFICULTY_RANK } from './solver.js';
+import { TECHNIQUES } from './solver-techniques.js';
 
 // Initialize memory for the worker context
 SudokuDLX.allocateMemory();
@@ -76,7 +76,10 @@ class SudokuGenerator {
                     const c = clues[i];
                     const bits = c.bits;
                     const sol = (bits & SudokuBitUtils.BIT_SOLUTION_MASK) >>> SudokuBitUtils.BIT_SOLUTION_SHIFT;
-                    SudokuLogicalSolver.SCRATCH_BIT_GRID[c.idx] = (bits & ~SudokuBitUtils.MASK_CANDIDATES) | (1 << (sol - 1));
+                    SudokuLogicalSolver.SCRATCH_BIT_GRID[c.idx] =
+                        (bits & ~SudokuBitUtils.MASK_CANDIDATES) |
+                        (1 << (sol - 1)) |
+                        SudokuBitUtils.BIT_CONFIRMED;
                 }
                 return SudokuLogicalSolver.SCRATCH_BIT_GRID;
             };

@@ -1,7 +1,6 @@
-/**
- * Sudoku Main Controller (main.js)
- * Integrates UI logic and Worker Orchestration.
- */
+import { SudokuBitUtils, SudokuBitBoard, SudokuDLX, SudokuLogicalSolver, DIFFICULTY_RANK } from './solver.js';
+import { t, tTechnique, applyLanguage, currentLang } from './i18n.js';
+import { TECHNIQUES } from './solver-techniques.js';
 
 const Utils = SudokuBitUtils;
 
@@ -11,6 +10,7 @@ let initialSnapshot = new Uint32Array(81); // State to restore on Reset
 let memoMode = false;
 let lastInputNumber = 0;
 let currentTechnique = '';
+
 
 // Undo/Redo
 const MAX_HISTORY = 127;
@@ -60,7 +60,7 @@ class SudokuOrchestrator {
         if (this.workers.length > 0) return;
         const maxWorkers = Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
         for (let i = 0; i < maxWorkers; i++) {
-            const w = new Worker('js/generator.js?v=' + Date.now());
+            const w = new Worker('js/generator.js?v=' + Date.now(), { type: 'module' });
             this.workers.push(w);
         }
     }
@@ -200,14 +200,14 @@ class SudokuOrchestrator {
 }
 
 /**
- * UI Functions
+ * UI Functions (script.js legacy)
  */
 function clearToolHighlight() {
     btnReset.classList.remove('active');
     btnRocket.classList.remove('active');
 }
 
-function showSimpleAlert(message) {
+export function showSimpleAlert(message) {
     window.alert(message);
     return Promise.resolve(true);
 }
@@ -255,7 +255,7 @@ function toggleMemoMode() {
 let isGenerating = false;
 let currentGenerationId = 0;
 
-async function initGame(difficulty, preGeneratedResult = null) {
+export async function initGame(difficulty, preGeneratedResult = null) {
     if (isGenerating) return;
     isGenerating = true;
     const myId = ++currentGenerationId;
@@ -275,20 +275,17 @@ async function initGame(difficulty, preGeneratedResult = null) {
         if (myId !== currentGenerationId) return;
         if (!result) throw new Error("No puzzle generated");
 
-        // ── ボード状態を確実にクリーンアップしてから新パズルをセット ──
         unifiedBoard.set(result.puzzle);
+        cellStateCache.fill(0xFFFFFFFF);
+        setSelectedIdx(0);
         SudokuBitUtils.clearUnsolvedCandidates(unifiedBoard);
         Utils.updateErrorFlags(unifiedBoard);
-        setSelectedIdx(0);              // UIフラグをunifiedBoardに反映
         initialSnapshot.set(unifiedBoard);
         setMemoMode(false);
         clearMemoAndHistory();
         currentTechnique = result.technique || '';
         messageEl.textContent = tTechnique(currentTechnique);
-
-        // キャッシュを無視して全セルを強制再描画
-        forceRenderBoard();
-
+        renderBoard();
     } catch (error) {
         console.error("Generation failed:", error);
         if (myId === currentGenerationId) {
@@ -375,7 +372,7 @@ function moveCell(direction) {
     scheduleRender();
 }
 
-function updateUndoRedoButtons() {
+export function updateUndoRedoButtons() {
     btnUndo.disabled = undoStack.length === 0;
     btnRedo.disabled = redoStack.length === 0;
 }
@@ -385,8 +382,7 @@ function resetBoard() {
     Utils.updateErrorFlags(unifiedBoard);
     clearMemoAndHistory();
     messageEl.textContent = tTechnique(currentTechnique);
-    // リセット時も強制再描画で確実にクリーンな状態にする
-    forceRenderBoard();
+    renderBoard();
 }
 
 function scheduleRender() {
@@ -433,84 +429,39 @@ function buildBoard() {
 
 function updateUIFlags() {
     const selectedIdx = getSelectedIdx();
-    const selectedRow = (selectedIdx / 9) | 0;
-    const selectedCol = selectedIdx % 9;
     const selectedCell = unifiedBoard[selectedIdx];
     const selectedVal = Utils.getValue(selectedCell);
     const targetNumber = selectedVal !== 0 ? selectedVal : lastInputNumber;
-    const selBoxRow = Math.floor(selectedRow / 3);
-    const selBoxCol = Math.floor(selectedCol / 3);
+
+    const selectedRow = (selectedIdx / 9) | 0;
+    const selectedCol = selectedIdx % 9;
+    const selBoxRow = (selectedRow / 3) | 0;
+    const selBoxCol = (selectedCol / 3) | 0;
+
     const volatileMask = Utils.BIT_UI_HIGHLIGHT | Utils.BIT_UI_SAME_DIGIT | Utils.BIT_UI_TARGET_MASK;
     const targetBits = (targetNumber & 0xF) << Utils.BIT_UI_TARGET_SHIFT;
 
     for (let i = 0; i < 81; i++) {
         let flags = 0;
-        const r = Math.floor(i / 9);
+        const r = (i / 9) | 0;
         const c = i % 9;
-        if (i === selectedIdx) flags |= Utils.BIT_UI_SELECTED;
-        if (r === selectedRow || c === selectedCol || (Math.floor(r / 3) === selBoxRow && Math.floor(c / 3) === selBoxCol)) {
+
+        if (i === selectedIdx) {
+            flags |= Utils.BIT_UI_SELECTED;
+        }
+
+        if (r === selectedRow || c === selectedCol || ((r / 3 | 0) === selBoxRow && (c / 3 | 0) === selBoxCol)) {
             flags |= Utils.BIT_UI_HIGHLIGHT;
         }
-        const val = Utils.getValue(unifiedBoard[i]);
-        if (targetNumber !== 0 && val === targetNumber) flags |= Utils.BIT_UI_SAME_DIGIT;
+
+        if (targetNumber !== 0 && Utils.getValue(unifiedBoard[i]) === targetNumber) {
+            flags |= Utils.BIT_UI_SAME_DIGIT;
+        }
+
         unifiedBoard[i] = (unifiedBoard[i] & ~volatileMask) | flags | targetBits;
     }
 }
 
-/**
- * 強制全セル再描画（ゲーム開始時・リセット時に使用）
- * cellStateCacheを無視してDOMを確実に最新状態に同期する
- */
-function forceRenderBoard() {
-    updateUIFlags();
-    cellStateCache.fill(~0);
-
-    for (let idx = 0; idx < 81; idx++) {
-        const raw = unifiedBoard[idx];
-        cellStateCache[idx] = raw;
-
-        const cell = cells[idx];
-        const value = Utils.getValue(raw);
-        const memoFlags = raw & Utils.MASK_CANDIDATES;
-
-        // クラスを完全リセット
-        let cls = 'cell';
-        if (raw & Utils.BIT_GIVEN) cls += ' given';
-        if (raw & Utils.BIT_UI_SELECTED) cls += ' selected';
-        if (raw & Utils.BIT_UI_HIGHLIGHT) cls += ' highlighted';
-        if (raw & Utils.BIT_UI_SAME_DIGIT) cls += ' same-number';
-        if (raw & Utils.BIT_UI_ERROR) cls += ' error';
-        cell.className = cls;
-
-        // data-val と data-highlight を確実にクリアしてから再設定
-        delete cell.dataset.val;
-        delete cell.dataset.highlight;
-
-        const currentTarget = (raw & Utils.BIT_UI_TARGET_MASK) >>> Utils.BIT_UI_TARGET_SHIFT;
-        if (currentTarget > 0) cell.dataset.highlight = currentTarget;
-
-        const spans = cellMemoSpans[idx];
-
-        if (value !== 0) {
-            cell.dataset.val = value;
-            for (let n = 0; n < 9; n++) spans[n].textContent = '';
-        } else if (memoFlags !== 0) {
-            for (let n = 0; n < 9; n++) {
-                spans[n].textContent = (memoFlags & (1 << n)) ? String(n + 1) : '';
-            }
-        } else {
-            // 空セル: スパンを確実にクリア
-            for (let n = 0; n < 9; n++) spans[n].textContent = '';
-        }
-    }
-
-    // forceRenderBoard後もkeypad状態を同期
-    updateKeypadStatus();
-}
-
-/**
- * 差分レンダリング（ゲーム中の通常操作に使用）
- */
 function renderBoard() {
     updateUIFlags();
     for (let idx = 0; idx < 81; idx++) {
@@ -522,13 +473,11 @@ function renderBoard() {
         const value = Utils.getValue(raw);
         const memoFlags = raw & Utils.MASK_CANDIDATES;
 
-        let cls = 'cell';
-        if (raw & Utils.BIT_GIVEN) cls += ' given';
-        if (raw & Utils.BIT_UI_SELECTED) cls += ' selected';
-        if (raw & Utils.BIT_UI_HIGHLIGHT) cls += ' highlighted';
-        if (raw & Utils.BIT_UI_SAME_DIGIT) cls += ' same-number';
-        if (raw & Utils.BIT_UI_ERROR) cls += ' error';
-        cell.className = cls;
+        cell.classList.toggle('given', !!(raw & Utils.BIT_GIVEN));
+        cell.classList.toggle('selected', !!(raw & Utils.BIT_UI_SELECTED));
+        cell.classList.toggle('highlighted', !!(raw & Utils.BIT_UI_HIGHLIGHT));
+        cell.classList.toggle('same-number', !!(raw & Utils.BIT_UI_SAME_DIGIT));
+        cell.classList.toggle('error', !!(raw & Utils.BIT_UI_ERROR));
 
         const currentTarget = (raw & Utils.BIT_UI_TARGET_MASK) >>> Utils.BIT_UI_TARGET_SHIFT;
         if (currentTarget > 0) cell.dataset.highlight = currentTarget;
@@ -553,17 +502,16 @@ function renderBoard() {
 }
 
 function updateKeypadStatus() {
-    const counts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    const counts = new Uint8Array(10);
     for (let i = 0; i < 81; i++) {
         const cell = unifiedBoard[i];
         if (cell & Utils.BIT_CONFIRMED) {
-            const val = Utils.getValue(cell);
-            if (val > 0) counts[val]++;
+            counts[Utils.getValue(cell)]++;
         }
     }
-    document.querySelectorAll('.key-btn').forEach(btn => {
-        const num = btn.dataset.num;
-        if (num) btn.classList.toggle('completed', counts[parseInt(num)] >= 9);
+    document.querySelectorAll('.key-btn[data-num]').forEach(btn => {
+        const num = parseInt(btn.dataset.num, 10);
+        btn.classList.toggle('completed', counts[num] >= 9);
     });
 }
 
@@ -664,7 +612,7 @@ function handleRocket() {
         if (undoStack.length > MAX_HISTORY) undoStack.shift();
         redoStack = [];
         updateUndoRedoButtons();
-
+        
         SudokuBitUtils.updateErrorFlags(unifiedBoard);
         updateHighlight();
         renderBoard();

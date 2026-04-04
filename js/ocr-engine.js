@@ -1,7 +1,4 @@
-/**
- * GridDetector - OpenCV-based sudoku grid detection and cell extraction
- */
-class GridDetector {
+export class GridDetector {
     static async _yield() {
         return new Promise(resolve => setTimeout(resolve, 0));
     }

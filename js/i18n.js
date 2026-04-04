@@ -1,6 +1,6 @@
 // ===== Internationalization (i18n) =====
 
-const translations = {
+export const translations = {
     ja: {
         reset: '最初に戻す',
         input: '入力',
@@ -185,10 +185,10 @@ const translations = {
 
 
 
-let currentLang = localStorage.getItem('sudoku-lang') || 'ja';
+export let currentLang = localStorage.getItem('sudoku-lang') || 'ja';
 
 // Translation function
-function t(key) {
+export function t(key) {
     return translations[currentLang]?.[key] || translations.ja[key] || key;
 }
 
@@ -199,12 +199,12 @@ function t(key) {
  * available, otherwise the raw name string is used as-is.
  * Single source of truth for the 🧠 emoji used in the UI.
  */
-function tTechnique(name) {
+export function tTechnique(name) {
     return '🧠 ' + name;
 }
 
 // Apply language to DOM elements
-function applyLanguage(lang) {
+export function applyLanguage(lang) {
     currentLang = lang;
     localStorage.setItem('sudoku-lang', lang);
 
