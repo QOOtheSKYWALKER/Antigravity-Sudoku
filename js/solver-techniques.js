@@ -294,8 +294,11 @@ export const TECHNIQUES = [
         }
     },
 
-    // ----- MEDIUM -----
 
+];
+
+export const TECHNIQUES_ADVANCED = [
+    // ----- MEDIUM -----
     {
         id: 'nakedPair',
         name: 'Naked Pair',

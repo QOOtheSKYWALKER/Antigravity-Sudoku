@@ -4,11 +4,11 @@
  */
 
 import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver } from './solver.js';
-import { TECHNIQUES } from './solver-techniques.js';
+import { TECHNIQUES, TECHNIQUES_ADVANCED } from './solver-techniques.js';
 
 // Initialize memory for the worker context
 SudokuDLX.allocateMemory();
-SudokuLogicalSolver.connectDictionary(TECHNIQUES);
+SudokuLogicalSolver.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
 const evalSandbox = SudokuLogicalSolver.createSandbox();
 
 /**

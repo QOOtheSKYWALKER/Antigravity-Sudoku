@@ -4,6 +4,8 @@
 import { SudokuBitUtils, SudokuLogicalSolver, SudokuDLX } from './solver.js';
 import { t, applyLanguage, currentLang } from './i18n.js';
 import { GridDetector } from './ocr-engine.js';
+import { TECHNIQUES, TECHNIQUES_ADVANCED } from './solver-techniques.js';
+SudokuLogicalSolver.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
 
 const btnOcrOpen = document.getElementById('btn-ocr-open');
 const ocrModal = document.getElementById('ocr-main-modal');

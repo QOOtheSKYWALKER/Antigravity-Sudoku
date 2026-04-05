@@ -1,6 +1,6 @@
 import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, nameToRank } from './solver.js';
-import { TECHNIQUES } from './solver-techniques.js';
-SudokuLogicalSolver.connectDictionary(TECHNIQUES);
+import { TECHNIQUES, TECHNIQUES_ADVANCED } from './solver-techniques.js';
+SudokuLogicalSolver.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
 const dashBoard = document.getElementById('dashboard-board');
 const miniBoard = document.getElementById('mini-board');
 const btnStart = document.getElementById('btn-start');
