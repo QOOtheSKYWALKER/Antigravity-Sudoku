@@ -1,5 +1,5 @@
 import { SudokuBitUtils, SudokuLogicalSolver, nameToRank } from './solver.js';
-import { t, tTechnique, applyLanguage } from './i18n.js';
+import { t, tTechnique, applyLanguage, currentLang } from './i18n.js';
 import { TECHNIQUES } from './solver-techniques.js';
 const Utils = SudokuBitUtils;
 
@@ -661,11 +661,9 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
     const themeSelect = document.getElementById('theme-select');
     const langSelect = document.getElementById('lang-select');
     const savedTheme = localStorage.getItem('sudoku-theme') || 'dark';
-    const savedLang = localStorage.getItem('sudoku-lang') || 'ja';
     if (themeSelect) themeSelect.value = savedTheme;
-    if (langSelect) langSelect.value = savedLang;
     applyTheme(savedTheme);
-    applyLanguage(savedLang);
+    applyLanguage(currentLang);
     SudokuLogicalSolver.connectDictionary(TECHNIQUES);
     themeSelect?.addEventListener('change', (e) => applyTheme(e.target.value));
     langSelect?.addEventListener('change', (e) => applyLanguage(e.target.value));

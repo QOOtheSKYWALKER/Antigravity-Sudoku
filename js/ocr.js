@@ -2,7 +2,7 @@
 // OCR Module - Image Recognition & Board Import
 // ============================================================================
 import { SudokuBitUtils, SudokuLogicalSolver, SudokuDLX } from './solver.js';
-import { t } from './i18n.js';
+import { t, applyLanguage, currentLang } from './i18n.js';
 import { GridDetector } from './ocr-engine.js';
 
 const btnOcrOpen = document.getElementById('btn-ocr-open');
