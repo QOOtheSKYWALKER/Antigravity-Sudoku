@@ -199,7 +199,7 @@ export class SudokuBitUtils {
 //   buf[0..2]  = confirmedMap  (d=0): bit i set → cell i is confirmed
 //   buf[d*3..] = candidateMap for digit d (1–9)
 // ====================================================================
-export class SudokuBitBoard {
+class SudokuBitBoard {
     constructor() { this.buf = new Uint32Array(30); }
 
     reset() { this.buf.fill(0); }
@@ -1001,32 +1001,6 @@ SudokuLogicalSolver.solveStep = function (unifiedBoard, _unused, sandbox = null)
     return null;
 };
 
-export const DIFFICULTY_RANK = {
-    'basic': 1,
-    'easy': 2,
-    'medium': 3,
-    'hard': 4,
-};
-
-/**
- * Convert a numeric rank to its difficulty name.
- * @param {number} rank
- * @returns {string}
- */
-export function rankToName(rank) {
-    return Object.keys(DIFFICULTY_RANK).find(k => DIFFICULTY_RANK[k] === rank) ?? 'basic';
-}
-
-/**
- * Convert a difficulty name to its numeric rank.
- * Returns 0 for unknown names.
- * @param {string} name
- * @returns {number}
- */
-export function nameToRank(name) {
-    return DIFFICULTY_RANK[name] ?? 0;
-}
-
 /**
  * Connect the logical engine to a specific dictionary of techniques.
  */
@@ -1051,3 +1025,29 @@ SudokuLogicalSolver.connectDictionary = function (techniques) {
         };
     }
 };
+
+const DIFFICULTY_RANK = {
+    'basic': 1,
+    'easy': 2,
+    'medium': 3,
+    'hard': 4,
+};
+
+/**
+ * Convert a numeric rank to its difficulty name.
+ * @param {number} rank
+ * @returns {string}
+ */
+function rankToName(rank) {
+    return Object.keys(DIFFICULTY_RANK).find(k => DIFFICULTY_RANK[k] === rank) ?? 'basic';
+}
+
+/**
+ * Convert a difficulty name to its numeric rank.
+ * Returns 0 for unknown names.
+ * @param {string} name
+ * @returns {number}
+ */
+export function nameToRank(name) {
+    return DIFFICULTY_RANK[name] ?? 0;
+}
