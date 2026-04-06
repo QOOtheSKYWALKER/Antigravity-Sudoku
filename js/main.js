@@ -168,9 +168,12 @@ class SudokuOrchestrator {
             return;
         }
 
+        const rank1Names = new Set(TECHNIQUES.map(t => t.name));
         const getComplexity = (p) => {
             if (!p.techniqueCounts) return 0;
-            return Object.values(p.techniqueCounts).reduce((sum, count) => sum + count, 0);
+            return Object.entries(p.techniqueCounts)
+                .filter(([name]) => !rank1Names.has(name))
+                .reduce((sum, [, count]) => sum + count, 0);
         };
 
         this.results.sort((a, b) => {

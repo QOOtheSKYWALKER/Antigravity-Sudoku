@@ -599,6 +599,7 @@ export class SudokuLogicalSolver {
         solver.reset(grid);
         return solver.solveByRank(targetRank);
     }
+
     static createSandbox() {
         return new SudokuLogicalSolver(new Uint8Array(81));
     }
@@ -771,11 +772,9 @@ export class SudokuLogicalSolver {
     }
 
     // difficultyLog からテクニック使用回数を集計
-    // basic (Singles) は除外
     getTechniqueCounts() {
         const counts = {};
         for (const item of this.difficultyLog) {
-            if (item.technique === 'Naked Single' || item.technique === 'Hidden Single') continue;
             counts[item.technique] = (counts[item.technique] || 0) + 1;
         }
         return counts;
@@ -835,18 +834,11 @@ const LogicalRules = {
         let loop = true;
         while (loop) {
             loop = false;
-            if (TECH_BY_RANK && TECH_BY_RANK[1]) {
-                solver.currentTechnique = TECH_BY_RANK[1][0].name; // Naked Single
-                if (TECH_BY_RANK[1][0].applyLogical(solver, silent)) {
+            for (const tech of (TECH_BY_RANK?.[1] ?? [])) { // Naked Single, Hidden Single
+                solver.currentTechnique = tech.name;
+                if (tech.applyLogical(solver, silent)) {
                     changed = loop = true;
-                    continue;
-                }
-                if (TECH_BY_RANK[1][1]) {
-                    solver.currentTechnique = TECH_BY_RANK[1][1].name; // Hidden Single
-                    if (TECH_BY_RANK[1][1].applyLogical(solver, silent)) {
-                        changed = loop = true;
-                        continue;
-                    }
+                    break;
                 }
             }
         }
@@ -897,7 +889,7 @@ const LogicalRules = {
  * Summarize human-readable difficulty from a difficultyLog
  */
 function getDifficultyLevel(log) {
-    if (!log || log.length === 0) return { rank: 1, technique: 'Naked Single' };
+    if (!log || log.length === 0) return { rank: 1, technique: (TECH_BY_RANK?.[1]?.[0]?.name ?? 'Naked Single') };
 
     let maxRank = -1;
     let bestItem = null;
@@ -913,7 +905,7 @@ function getDifficultyLevel(log) {
 
     return {
         rank: maxRank,
-        technique: bestItem ? bestItem.technique : 'Naked Single'
+        technique: bestItem ? bestItem.technique : (TECH_BY_RANK?.[1]?.[0]?.name ?? 'Naked Single')
     };
 }
 
@@ -966,8 +958,8 @@ SudokuLogicalSolver.solveStep = function (unifiedBoard, _unused, sandbox = null)
     SudokuBitUtils.updateAllCandidates(tempBoard);      // 確定値から全メモを再展開 (Standard Pruning 含む)
 
     const pruningSolver = new SudokuLogicalSolver(tempBoard, false);
-    if (typeof pruningSolver.lockedCandidates === 'function') {
-        pruningSolver.lockedCandidates(); // Locked Candidates による剪定
+    for (const tech of (TECH_BY_RANK?.[2] ?? [])) { // Locked Candidates による剪定
+        tech.applyLogical(pruningSolver);
     }
 
     // 4. UI メモとの比較・適用
@@ -1016,8 +1008,6 @@ SudokuLogicalSolver.connectDictionary = function (techniques) {
     for (const tech of techniques) {
         TECHNIQUE_LEVELS[tech.name] = tech.rank;
     }
-    TECHNIQUE_LEVELS['Locked Candidates (Pointing)'] = 2;
-    TECHNIQUE_LEVELS['Locked Candidates (Claiming)'] = 2;
 
     for (const tech of techniques) {
         SudokuLogicalSolver.prototype[tech.id] = function () {
