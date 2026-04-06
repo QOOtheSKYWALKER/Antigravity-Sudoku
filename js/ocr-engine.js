@@ -3,6 +3,10 @@ export class GridDetector {
         return new Promise(resolve => setTimeout(resolve, 0));
     }
 
+    // Constants for normalization and output size
+    static NORM_SIZE = 128;
+    static PADDING_FACTOR = 0.8; // Use 80% of canvas for the digit
+
     /**
      * Main image recognition pipeline
      * @param {HTMLCanvasElement} canvas Input image drawn on canvas
@@ -50,6 +54,7 @@ export class GridDetector {
 
         for (let i = 0; i < 81; i++) {
             if (i % 9 === 0) await this._yield(); // Yield every 9 cells
+
             let cellGray = new cv.Mat();
             cv.cvtColor(cellsMats[i], cellGray, cv.COLOR_RGBA2GRAY, 0);
 
@@ -100,13 +105,13 @@ export class GridDetector {
         // 5. Normalization (only for valid digits)
         let processedCellMatInfo = []; // { mat, h }
         const validIndices = new Set();
-        const NORM_SIZE = 128;
 
         for (let i = 0; i < 81; i++) {
             if (i % 9 === 0) await this._yield(); // Yield every 9 cells
+
             let h = heightInfos[i].h;
-            let finalCell = new cv.Mat.ones(NORM_SIZE, NORM_SIZE, cv.CV_8UC1);
-            finalCell.setTo(new cv.Scalar(255));
+            let finalCell = new cv.Mat.ones(this.NORM_SIZE, this.NORM_SIZE, cv.CV_8UC1);
+            finalCell.setTo(new cv.Scalar(255)); // Initialize to white background
 
             if (h >= heightThreshold && h > 0) {
                 validIndices.add(i);
@@ -114,7 +119,10 @@ export class GridDetector {
                 // Re-process to extract mask and normalize
                 let cellGray = new cv.Mat();
                 cv.cvtColor(cellsMats[i], cellGray, cv.COLOR_RGBA2GRAY, 0);
+
+                // Dark mode detection
                 if (cv.mean(cellGray)[0] < 128) cv.bitwise_not(cellGray, cellGray);
+
                 let cellBinary = new cv.Mat();
                 cv.threshold(cellGray, cellBinary, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU);
 
@@ -145,18 +153,21 @@ export class GridDetector {
                     cv.compare(labels, labelMat, labelMask, cv.CMP_EQ);
                     labelMat.delete();
 
-                    let centered = this.centerDigit(labelMask);
+                    let centeredMat = this.centerDigit(labelMask);
                     finalCell.delete();
-                    finalCell = centered;
+                    finalCell = centeredMat;
                     labelMask.delete();
                 }
 
                 cellGray.delete(); cellBinary.delete(); labels.delete(); stats.delete(); centroids.delete();
             } else {
-                h = 0; // Treatment below threshold
+                // Treatment below threshold (mark as empty/white)
+                h = 0;
             }
             processedCellMatInfo.push({ mat: finalCell, h: h });
         }
+
+        updateProgress(0.25);
 
         // 6. Grouping (similarity > 90%)
         let groups = [];
@@ -167,6 +178,7 @@ export class GridDetector {
             let matched = false;
             for (let group of groups) {
                 let res = new cv.Mat();
+                // Use normalized cross-correlation for template matching
                 cv.matchTemplate(processedCellMatInfo[i].mat, processedCellMatInfo[group.representativeIdx].mat, res, cv.TM_CCOEFF_NORMED);
                 let mm = cv.minMaxLoc(res);
                 res.delete();
@@ -193,12 +205,13 @@ export class GridDetector {
             canvas.height = info.mat.rows;
 
             if (!hasDigit) {
+                // Empty cells remain white background
                 let whiteMat = new cv.Mat.ones(info.mat.rows, info.mat.cols, cv.CV_8UC1);
                 whiteMat.setTo(new cv.Scalar(255));
                 cv.imshow(canvas, whiteMat);
                 whiteMat.delete();
             } else {
-                // centerDigit already returns white-bg / black-text, show as-is
+                // Show the processed digit (which includes centering)
                 cv.imshow(canvas, info.mat);
             }
 
@@ -209,16 +222,12 @@ export class GridDetector {
             cellsMats[i].delete();
         }
 
-        updateProgress(0.25);
-
-        const finalGroups = groups.map(g => ({
-            canvases: [cells[g.representativeIdx]],
-            indices: g.indices
-        }));
-
-        src.delete(); boardMat.delete();
-
-        return { cells, groups: finalGroups };
+        return {
+            cells, groups: groups.map(g => ({
+                canvases: [cells[g.representativeIdx]],
+                indices: g.indices
+            }))
+        };
     }
 
     static findGridRect(src) {
@@ -227,6 +236,7 @@ export class GridDetector {
         let blurred = new cv.Mat();
         cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
         let thresh = new cv.Mat();
+        // Adaptive thresholding to find grid lines
         cv.adaptiveThreshold(blurred, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 11, 2);
 
         let contours = new cv.MatVector();
@@ -235,11 +245,15 @@ export class GridDetector {
 
         let maxArea = 0;
         let bestRect = null;
+
+        // Find contours that resemble grid lines (aspect ratio check)
         for (let i = 0; i < contours.size(); ++i) {
             let cnt = contours.get(i);
             let rect = cv.boundingRect(cnt);
             let area = rect.width * rect.height;
             let aspect = rect.width / rect.height;
+
+            // Check for rectangular shapes typical of grid lines (aspect ratio 0.8 to 1.2)
             if (aspect > 0.8 && aspect < 1.2 && area > maxArea) {
                 maxArea = area;
                 bestRect = rect;
@@ -251,15 +265,19 @@ export class GridDetector {
         return bestRect;
     }
 
+    /**
+     * Centers the detected digit within a target square of size NORM_SIZE x NORM_SIZE.
+     * @param {cv.Mat} cellMat The binary mask of the cell containing the digit.
+     * @returns {cv.Mat} The centered and inverted digit mask.
+     */
     static centerDigit(cellMat) {
-        const TARGET_SIZE = 128;
-        const PADDING_FACTOR = 0.8; // Use 80% of canvas for the digit
+        const TARGET_SIZE = this.NORM_SIZE;
+        const PADDING_FACTOR = this.PADDING_FACTOR; // 80% padding
 
         let labels = new cv.Mat();
         let stats = new cv.Mat();
         let centroids = new cv.Mat();
 
-        // OpenCV.js ConnectedComponents requires contiguous memory
         let clonedMat = cellMat.clone();
         let nLabels = cv.connectedComponentsWithStats(clonedMat, labels, stats, centroids);
         clonedMat.delete();
@@ -268,6 +286,7 @@ export class GridDetector {
         let maxArea = 0;
         let digitIndex = -1;
 
+        // Find the largest object (the digit)
         for (let i = 1; i < nLabels; i++) {
             let area = stats.intAt(i, cv.CC_STAT_AREA);
             if (area > maxArea) {
@@ -282,6 +301,7 @@ export class GridDetector {
             }
         }
 
+        // Initialize output canvas to white background (255)
         let output = new cv.Mat.ones(TARGET_SIZE, TARGET_SIZE, cv.CV_8UC1);
         output.setTo(new cv.Scalar(255));
 
@@ -302,7 +322,7 @@ export class GridDetector {
             let resizedDigit = new cv.Mat();
             cv.resize(digitROI, resizedDigit, new cv.Size(newWidth, newHeight), 0, 0, cv.INTER_CUBIC);
 
-            // Center correctly on 128x128 canvas
+            // Center correctly on TARGET_SIZE canvas
             let targetX = Math.floor((TARGET_SIZE - newWidth) / 2);
             let targetY = Math.floor((TARGET_SIZE - newHeight) / 2);
             let targetRect = new cv.Rect(targetX, targetY, newWidth, newHeight);

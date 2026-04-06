@@ -183,8 +183,6 @@ export const translations = {
     }
 };
 
-
-
 export let currentLang = localStorage.getItem('sudoku-lang') || 'ja';
 
 // Translation function
@@ -208,29 +206,42 @@ export function applyLanguage(lang) {
     currentLang = lang;
     localStorage.setItem('sudoku-lang', lang);
 
+    const updateText = (selector, attribute, keySelector, contentSelector) => {
+        document.querySelectorAll(selector).forEach(el => {
+            const key = el.getAttribute(keySelector);
+            if (translations[lang]?.[key]) {
+                if (attribute) {
+                    el.setAttribute(attribute, translations[lang][key]);
+                } else {
+                    el.textContent = translations[lang][key];
+                }
+            }
+        });
+    };
+
     // Update textContent for elements with data-i18n attribute
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-        const key = el.getAttribute('data-i18n');
-        if (translations[lang]?.[key]) {
-            el.textContent = translations[lang][key];
-        }
-    });
+    updateText(
+        '[data-i18n]',
+        null,
+        'data-i18n',
+        null
+    );
 
     // Update title for elements with data-i18n-title attribute
-    document.querySelectorAll('[data-i18n-title]').forEach(el => {
-        const key = el.getAttribute('data-i18n-title');
-        if (translations[lang]?.[key]) {
-            el.title = translations[lang][key];
-        }
-    });
+    updateText(
+        '[data-i18n-title]',
+        'title',
+        'data-i18n-title',
+        null
+    );
 
     // Update textContent for <option> elements with data-i18n-option attribute
-    document.querySelectorAll('[data-i18n-option]').forEach(el => {
-        const key = el.getAttribute('data-i18n-option');
-        if (translations[lang]?.[key]) {
-            el.textContent = translations[lang][key];
-        }
-    });
+    updateText(
+        '[data-i18n-option]',
+        null,
+        'data-i18n-option',
+        null
+    );
 
     // Update html lang attribute
     document.documentElement.lang = lang === 'en' ? 'en' : 'ja';
