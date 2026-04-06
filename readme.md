@@ -1,4 +1,4 @@
-# Technical Specification: Antigravity Sudoku
+# Antigravity Sudoku: Technical Specification
 
 Antigravity Sudoku is a high-performance, web-based Sudoku application that features a sophisticated logical solver, technique-based puzzle generation, and a computer vision pipeline for importing puzzles from images. This document provides a detailed technical breakdown of the internal mechanics, algorithms, and architectural decisions.
 
@@ -7,17 +7,17 @@ Antigravity Sudoku is a high-performance, web-based Sudoku application that feat
 ## 1. System Architecture & Tech Stack
 
 ### 1.1 Technology Stack
-- **Frontend Core**: HTML5, CSS3, Vanilla JavaScript (ES6+). No build step or server required.
+- **Frontend Core**: HTML5, CSS3, Vanilla JavaScript (ES6+). Zero build steps.
 - **Core Logic**: `solver-techniques.js` (technique definitions) + `solver.js` (Sudoku engine).
-- **Parallel Processing**: **Persistent Web Worker Pool** (`js/generator.js`). Puzzles are generated in the background. Script parsing overhead is eliminated by keeping workers "warm" across multiple game sessions.
-- **Communication layer**: Uses **Transferable Objects** (`ArrayBuffer` transfer) between Main and Worker threads, ensuring zero-copy data transfer and sub-millisecond overhead.
-- **High-Performance DLX**: `SudokuDLX` uses **TypedArrays** (Int32Array/Uint8Array) for a circular 4-way linked list. Optimized with a **Dirty Return (Short-circuiting)** mechanism.
-- **Bitwise Evaluation**: `SudokuBitUtils` and `LogicalRules` (in `js/solver.js` and `js/solver-techniques.js`) provide ultra-fast logical evaluation using bit-parallel operations and optimized `popcount`.
-- **Zero-Allocation Loops**: Performance is optimized by pre-sorting all techniques into `TECH_BY_RANK` dictionaries.
+- **Parallel Processing**: **Persistent Module Worker Pool** (`js/generator.js`). Puzzles are generated in the background. Uses ES modules for worker scripts.
+- **Communication Layer**: Uses **Transferable Objects** (`ArrayBuffer` transfer) between Main and Worker threads.
+- **High-Performance DLX**: `SudokuDLX` uses **TypedArrays** (Int32Array/Uint8Array) for a circular 4-way linked list.
+- **Bitwise Evaluation**: `SudokuBitUtils` and `LogicalRules` provide ultra-fast logical evaluation using bit-parallel operations and optimized `popcount`.
 - **Computer Vision**:
-    - **OpenCV.js**: Grid detection, image preprocessing, template matching for cell grouping.
-    - **Tesseract.js**: Optical Character Recognition (OCR) for digit extraction.
-- **Modern CSS Architecture**: Employs **CSS `@layer`** (`base`, `components`, `states`) for cascade priority management. Utilizes a **2-tier design token system** (Primitive Palette & Semantic Tokens).
+    - **OpenCV.js**: Grid detection and image preprocessing.
+    - **Tesseract.js**: OCR for digit extraction.
+- **Local AI Assistant**: Integrated with **Ollama (Gemma 4)** for logic-assisted development and analysis via `ask-gemma.sh`.
+- **Modern CSS Architecture**: Employs **CSS `@layer`** for cascade priority management.
 - **Persistence**: `localStorage` (language, theme, manual correction cache).
 
 ### 1.2 File Structure
@@ -87,9 +87,9 @@ The generator is powered by a high-speed **Dancing Links (DLX)** implementation 
 
 ### 3.3 Stateful Pre-generation & Replenish Logic
 - **Intent-based Pre-generation**: Generation begins the moment a user clicks a difficulty button, utilizing the thinking time during the confirmation dialog.
-- **Replenish Model**: Workers run in persistent loops (`count` parameter). Every time a worker submits a result, the orchestrator evaluates it and immediately assigns a new "replenish" task to that worker until 4 high-quality puzzles are secured.
-- **Verified Logic Guarantee**: The engine refuses to compromise on quality. Puzzles that fail the full "Waterfall Reset" simulation are discarded, ensuring every delivered puzzle is logically consistent and solvable at the claimed difficulty.
-- **Zero-Copy Serialization**: Transferable Object support is extended across loops, ensuring buffers are moved, not copied, even during continuous background generation.
+- **Replenish Model**: Workers run in persistent loops. Every time a worker submits a result, the orchestrator evaluates it and immediately assigns a new task until the pool is full.
+- **Verified Logic Guarantee**: The engine refuses to compromise on quality. Puzzles that fail the full "Waterfall Reset" simulation are discarded.
+- **Zero-Copy Serialization**: Transferable Object support ensures buffers are moved, not copied, even during continuous background generation.
 
 ---
 

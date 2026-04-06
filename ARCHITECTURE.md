@@ -21,11 +21,11 @@ sudoku/
 │   ├── ui.css            # UI components (buttons, etc.) within @layer components/states
 │   ├── modal.css         # Modal and dialog styles within @layer components
 │   └── heatmap.css       # Heatmap specific styles within @layer components
-└── js/                   # All logic scripts
+└── js/                   # All logic scripts (ES Modules)
     ├── main.js           # Consolidated UI logic & Worker Orchestrator
     ├── solver.js         # Engine core (DLX, BitUtils, LogicalSolver base)
     ├── solver-techniques.js # Advanced human-like techniques
-    ├── generator.js      # Worker entry point & Generation logic
+    ├── generator.js      # Worker entry point & Generation logic (Module Worker)
     ├── ocr-engine.js     # OpenCV-based grid detection (GridDetector)
     ├── ocr.js            # OCR pipeline & Image import UI
     ├── heatmap.js        # Heatmap specific logic
@@ -44,9 +44,20 @@ game board, keypad, memo toggle, undo/redo buttons, settings bar, and OCR modal.
 ### `index.html`
 The landing and overview page. Provides an introduction to the project's features and technical background, with a direct link to `play.html`.
 
-**Script load order:**
-```
-js/solver.js → js/solver-techniques.js → js/i18n.js → js/main.js → js/ocr-engine.js → js/ocr.js
+**Module imports:**
+```javascript
+// play.html loads:
+import 'js/main.js';
+import 'js/ocr.js';
+
+// Internal dependencies:
+main.js ─────────► solver.js
+main.js ─────────► i18n.js
+main.js ─────────► solver-techniques.js
+ocr.js  ─────────► solver.js
+ocr.js  ─────────► ocr-engine.js
+ocr.js  ─────────► i18n.js
+generator.js  ───► solver.js (Loaded as Module Worker)
 ```
 
 ---
@@ -116,28 +127,18 @@ The high-level coordinator used in the Web Worker to generate and shape puzzles.
 
 ---
 
-### `worker.js`
-A lightweight background process that purely runs the `solver.js` engine. It does **not** load technique definitions, focusing instead on rapid bit-parallel reduction. It uses `taskId` to manage state across multiple generation requests within the persistent pool.
-
----
-
 ### `js/main.js`
-Game UI logic, Worker Orchestration, state management, and application initialization.
-Merged from `script.js` and `orchestrator.js`.
-
-**Key features:**
-- Owns `unifiedBoard` (32-bit state)
-- Manages `SudokuOrchestrator` for parallel worker pooling.
-- Handles all UI event listeners and DOM rendering.
-- Implements Rocket Button (🚀) state machine.
-
----
+The central hub for UI logic and state management. Merged from `script.js` and `orchestrator.js`.
+- Manages `unifiedBoard` (32-bit state) and `undoStack`.
+- Implements `SudokuOrchestrator` for parallel worker pooling.
+- Handles all UI event listeners (Keypad, Keyboard, Reset, Rocket).
+- Communicates with `ocr.js` via the `ocr:complete` custom event.
 
 ### `js/generator.js`
-Worker entry point for asynchronous puzzle generation.
-- Acts as the `worker.js` script.
-- Contains `SudokuGenerator` class with smoothing and exploration algorithms.
-- Dynamically loads `js/solver.js` and `js/solver-techniques.js` via `importScripts`.
+The entry point for background threads. Replaces `worker.js`.
+- Runs as an **ES Module Worker**.
+- Imports `solver.js` to execute generation logic.
+- Maintains a persistent message loop, responding to `GENERATE` tasks from the `Orchestrator`.
 
 ---
 
@@ -163,14 +164,39 @@ OCR pipeline using Tesseract.js.
 
 ## Dependency Graph
 
-```
-[CDN] opencv.js ────────────────────────┐
-[CDN] tesseract.js ─────────────────────┤
-                                        ▼
-solver-techniques.js ──► solver.js ◄── worker.js
-                          │
-                          ▼
-              i18n.js ──► script.js ◄── grid-detector.js ──► ocr.js
+```mermaid
+graph TD
+    subgraph Browser UI
+        subgraph play.html
+            M[main.js]
+            O[ocr.js]
+        end
+    end
+
+    subgraph Core Engine
+        S[solver.js]
+        ST[solver-techniques.js]
+        I[i18n.js]
+    end
+
+    subgraph Service Workers
+        G[generator.js]
+    end
+
+    subgraph Computer Vision
+        OE[ocr-engine.js]
+        CV[OpenCV.js]
+    end
+
+    M --> S
+    M --> ST
+    M --> I
+    O --> S
+    O --> OE
+    O --> I
+    OE --> CV
+    G -- "import { ... } from" --> S
+    M -- "new Worker()" --> G
 ```
 
 ---
