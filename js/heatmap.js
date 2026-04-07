@@ -1,6 +1,7 @@
 import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, nameToRank } from './solver.js';
 import { TECHNIQUES, TECHNIQUES_ADVANCED } from './solver-techniques.js';
 SudokuLogicalSolver.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
+const rank1Names = new Set(TECHNIQUES.filter(t => t.rank === 1).map(t => t.name));
 const dashBoard = document.getElementById('dashboard-board');
 const miniBoard = document.getElementById('mini-board');
 const btnStart = document.getElementById('btn-start');
@@ -53,7 +54,7 @@ function initGrids() {
     }
 }
 
-function updateMiniBoard(grid) {
+function updateMiniBoard(grid, evalResult = null) {
     let currentCluesCount = 0;
 
     // Use SudokuBitUtils to find the current state of candidates
@@ -90,20 +91,14 @@ function updateMiniBoard(grid) {
     const globalTechEl = document.getElementById('global-techniques');
     if (globalTechEl) {
         // Direct engine calls for global evaluation
-        const solutions = SudokuDLX.countSolutions(grid);
-        const baseEval = { count: solutions };
-        if (solutions === 1) {
-            const solver = evalSandbox;
-            solver.reset(grid);
-            const fullRes = solver.solveByRank(4);
-            baseEval.techniqueCounts = fullRes.techniqueCounts;
-        }
+        const counts = evalResult?.techniqueCounts;
 
-        if (baseEval.techniqueCounts && Object.keys(baseEval.techniqueCounts).length > 0) {
-            const techs = Object.entries(baseEval.techniqueCounts)
+        if (counts && Object.keys(counts).length > 0) {
+            const techs = Object.entries(counts)
+                .filter(([name]) => !rank1Names.has(name))   // rank1 を除外
                 .map(([name, count]) => `${name}${count > 1 ? ' x' + count : ''}`)
-                .join(', ');
-            globalTechEl.textContent = techs ? techs : '';
+                .join('\n');
+            globalTechEl.textContent = techs;
         } else {
             globalTechEl.textContent = '';
         }
@@ -277,7 +272,6 @@ function handleCellClick(index) {
         }
     }
 
-    updateMiniBoard(currentGrid);
     requestEvaluation();
 }
 
@@ -296,8 +290,6 @@ async function requestEvaluation() {
     clearConnections();
     statusMsg.textContent = 'Calculating...';
 
-    const yieldUI = () => new Promise(resolve => setTimeout(resolve, 0));
-
     // 1. Base evaluation
     const baseCount = SudokuDLX.countSolutions(currentGrid);
     let baseDifficulty = 'INF';
@@ -306,6 +298,12 @@ async function requestEvaluation() {
         const resBit = SudokuLogicalSolver.evaluate(currentGrid, 4, evalSandbox);
         baseDifficulty = resBit.difficulty || 'basic';
     }
+
+    const evalResult = baseCount === 1
+        ? SudokuLogicalSolver.evaluate(currentGrid, 4, evalSandbox)
+        : null;
+
+    updateMiniBoard(currentGrid, evalResult);
 
     // 1b. Calculate current INF count and which clues are already INF
     let currentInfCount = 0;
@@ -370,10 +368,7 @@ async function requestEvaluation() {
 
             gridCopy[i] = val;
 
-            if (i % 2 === 0) {
-                statusMsg.textContent = `Analyzing Strategy... ${Math.round((i / 81) * 100)}%`;
-                await yieldUI();
-            }
+
         }
     }
 
@@ -412,7 +407,7 @@ function randomSolveAndFill(outGrid) {
     }
 }
 
-btnStart.addEventListener('click', async () => {
+async function startNewGame() {
     isCalculating = true;
     statusMsg.textContent = 'Generating unique board...';
     await new Promise(r => setTimeout(r, 0));
@@ -446,13 +441,21 @@ btnStart.addEventListener('click', async () => {
     isCalculating = false;
     pushState();
     currentGrid.set(grid);
-    solutionGrid.set(solveGrid); // Remember the full solution
-    persistentConnections = []; // Reset dependency trace on new game
-
-    updateMiniBoard(currentGrid);
+    solutionGrid.set(solveGrid);
+    persistentConnections = [];
     requestEvaluation();
-});
+}
 
+btnStart.addEventListener('click', startNewGame);
+
+// モード切り替え時
+document.getElementById('start-mode').addEventListener('change', startNewGame);
+
+// DOMContentLoaded 時
+document.addEventListener('DOMContentLoaded', () => {
+    initGrids();
+    startNewGame();   // renderEmptyDashboard() は不要になる（startNewGame が上書きするため）
+});
 
 
 function undo() {
@@ -460,7 +463,6 @@ function undo() {
     redoStack.push(new Uint8Array(currentGrid));
     currentGrid = undoStack.pop();
     updateButtons();
-    updateMiniBoard(currentGrid);
     requestEvaluation();
 }
 
@@ -469,7 +471,6 @@ function redo() {
     undoStack.push(new Uint8Array(currentGrid));
     currentGrid = redoStack.pop();
     updateButtons();
-    updateMiniBoard(currentGrid);
     requestEvaluation();
 }
 
