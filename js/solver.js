@@ -114,6 +114,20 @@ export class SudokuBitUtils {
         return (Math.log2(bit & 0x1FF) + 1) | 0;
     }
 
+    /**
+     * Iterates over each set bit in a 9-bit candidate mask.
+     * @param {number} mask - 9-bit candidate mask
+     * @param {function(number): void} callback - Function called with digit (0-8)
+     */
+    static forEachBit(mask, callback) {
+        let m = mask & 0x01FF;
+        while (m) {
+            const bit = m & -m;
+            m ^= bit;
+            callback(this.bitToDigit(bit) - 1);
+        }
+    }
+
     static maskToDigits(mask) {
         const out = [];
         let m = mask & 0x01FF;
@@ -547,9 +561,35 @@ export class SudokuLogicalSolver {
     static SCRATCH_BIT_GRID = new Uint32Array(81);
     static SCRATCH_INT_GRID = new Uint8Array(81);
     static HOUSE_MASKS = new Uint32Array(27 * 3); // precomputed 3-word bitboard mask per house
+    static ADJACENCY_MATRIX = new Uint8Array(81 * 81); // 1 if sees, 0 if not
+
+    /**
+     * O(1) check if cell i sees cell j.
+     * @param {number i 
+     * @param {number j 
+     * @returns {boolean}
+     */
+    static sees(i, j) {
+        return this.ADJACENCY_MATRIX[i * 81 + j] === 1;
+    }
+
+    static DIMENSIONS = [
+        { 
+            name: 'row', 
+            mask: (bb, d, i) => bb.rowMask(d, i),
+            toIdx: (i, pos) => i * 9 + pos 
+        },
+        { 
+            name: 'col', 
+            mask: (bb, d, i) => bb.colMask(d, i),
+            toIdx: (i, pos) => pos * 9 + i 
+        }
+    ];
 
     static init() {
         if (this.initialized) return;
+        this.initialized = true;
+
         for (let r = 0; r < 9; r++) {
             for (let c = 0; c < 9; c++) {
                 const idx = r * 9 + c;
@@ -565,7 +605,11 @@ export class SudokuLogicalSolver {
                     }
                 }
                 const peerArray = Array.from(peers);
-                for (let p = 0; p < 20; p++) this.PEERS[idx * 20 + p] = peerArray[p];
+                for (let p = 0; p < 20; p++) {
+                    const peerIdx = peerArray[p];
+                    this.PEERS[idx * 20 + p] = peerIdx;
+                    this.ADJACENCY_MATRIX[idx * 81 + peerIdx] = 1;
+                }
             }
         }
         for (let i = 0; i < 9; i++) {
@@ -590,7 +634,6 @@ export class SudokuLogicalSolver {
                 this.HOUSE_MASKS[h * 3 + (ci >> 5)] |= 1 << (ci & 31);
             }
         }
-        this.initialized = true;
     }
 
     static evaluate(grid, targetRank = 4, sandbox = null) {
@@ -617,6 +660,8 @@ export class SudokuLogicalSolver {
         this.fastMode = fastMode;
         this.unifiedBoard = fastMode ? null : new Uint32Array(81); // fastModeでは不要
         this.bb = new SudokuBitBoard();
+        this.biCells = []; // Indices of cells with exactly 2 candidates
+        this.metadataDirty = true;
         this.currentTechnique = null;
         this.reset(grid);
     }
@@ -647,6 +692,27 @@ export class SudokuLogicalSolver {
             }
             this.rebuildBB();
         }
+        this.updateMetadata();
+    }
+
+    getBiCells() {
+        if (this.metadataDirty) this.updateMetadata();
+        return this.biCells;
+    }
+
+    /**
+     * Updates auxiliary data like biCells for techniques.
+     */
+    updateMetadata() {
+        this.biCells = [];
+        for (let i = 0; i < 81; i++) {
+            if (!this.bb.has(0, i)) {
+                if (SudokuBitUtils.popcount(this.bb.getCellMask(i)) === 2) {
+                    this.biCells.push(i);
+                }
+            }
+        }
+        this.metadataDirty = false;
     }
 
     // ─────────────────────────────────────────
@@ -735,6 +801,7 @@ export class SudokuLogicalSolver {
             this.unifiedBoard[idx] &= ~(1 << (d - 1));
         }
         this.bb.clear(d, idx);
+        this.metadataDirty = true;
     }
 
     clearCandidates(idx, digitMask) {
@@ -744,6 +811,7 @@ export class SudokuLogicalSolver {
         }
         let m = digitMask & SudokuBitUtils.MASK_CANDIDATES;
         while (m) { const b = m & -m; this.bb.clear(SudokuBitUtils.bitToDigit(b), idx); m ^= b; }
+        this.metadataDirty = true;
     }
 
     setCellValue(idx, val, technique, silent = false) {
@@ -769,6 +837,7 @@ export class SudokuLogicalSolver {
             this.difficultyLog.push({ technique: technique, idx: idx, val: val });
         }
         this.fillLog.push(idx);
+        this.metadataDirty = true;
     }
 
     // difficultyLog からテクニック使用回数を集計
