@@ -889,8 +889,6 @@ const LogicalRules = {
  * Summarize human-readable difficulty from a difficultyLog
  */
 function getDifficultyLevel(log) {
-    if (!log || log.length === 0) return { rank: 1, technique: (TECH_BY_RANK?.[1]?.[0]?.name ?? 'Naked Single') };
-
     let maxRank = -1;
     let bestItem = null;
 
@@ -905,7 +903,7 @@ function getDifficultyLevel(log) {
 
     return {
         rank: maxRank,
-        technique: bestItem ? bestItem.technique : (TECH_BY_RANK?.[1]?.[0]?.name ?? 'Naked Single')
+        technique: bestItem ? bestItem.technique : 'Error'
     };
 }
 
