@@ -1,4 +1,4 @@
-import { SudokuBitUtils, SudokuLogicalSolver, nameToRank } from './solver.js';
+import { SudokuBitUtils, SudokuLogicalSolver, nameToRank, DifficultyEvaluator, SudokuUIBridge } from './solver.js';
 import { t, tTechnique, applyLanguage, currentLang } from './i18n.js';
 import { TECHNIQUES } from './solver-techniques.js';
 const Utils = SudokuBitUtils;
@@ -18,7 +18,7 @@ let redoStack = [];
 
 // Initial memory allocation
 // SudokuDLX.allocateMemory();
-const evalSandbox = SudokuLogicalSolver.createSandbox();
+const evalSandbox = DifficultyEvaluator.createSandbox();
 
 // Render cache
 let cells = [];
@@ -609,7 +609,7 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
 function handleRocket() {
     btnRocket.classList.add('active');
     const beforeState = createSnapshot();
-    const result = SudokuLogicalSolver.solveStep(unifiedBoard, false, evalSandbox);
+    const result = SudokuUIBridge.solveStep(unifiedBoard, false, evalSandbox);
     if (result) {
         undoStack.push(beforeState);
         if (undoStack.length > MAX_HISTORY) undoStack.shift();

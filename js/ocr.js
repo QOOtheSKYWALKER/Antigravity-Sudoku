@@ -1,7 +1,7 @@
 // ============================================================================
 // OCR Module - Image Recognition & Board Import (Refactored)
 // ============================================================================
-import { SudokuBitUtils, SudokuLogicalSolver, SudokuDLX } from './solver.js';
+import { SudokuBitUtils, SudokuLogicalSolver, SudokuDLX, DifficultyEvaluator } from './solver.js';
 import { t, applyLanguage, currentLang } from './i18n.js';
 import { GridDetector } from './ocr-engine.js';
 import { TECHNIQUES, TECHNIQUES_ADVANCED } from './solver-techniques.js';
@@ -92,7 +92,7 @@ class OcrSession {
         this.recognizedCellsCount = 0;
         this.ocrLibrariesLoaded = false;
 
-        SudokuDLX.allocateMemory();
+        SudokuDLX.init();
         SudokuLogicalSolver.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
     }
 
@@ -406,7 +406,7 @@ class OcrSession {
             const val = SudokuBitUtils.getValue(raw);
             if (val !== 0) {
                 grid[i] = 0;
-                if (!SudokuLogicalSolver.isValid(grid, i, val)) isRuleValid = false;
+                if (!SudokuBitUtils.isValid(grid, i, val)) isRuleValid = false;
                 grid[i] = raw;
             }
             if (!isRuleValid) break;
@@ -424,7 +424,7 @@ class OcrSession {
     }
 
     finalizePuzzle() {
-        const resultEval = SudokuLogicalSolver.evaluate(this.gridResult, 4);
+        const resultEval = DifficultyEvaluator.evaluate(this.gridResult, 4);
         const solBuffer = new Uint32Array(this.gridResult);
         SudokuDLX.solveAndFill(solBuffer);
 

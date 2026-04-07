@@ -1,4 +1,4 @@
-import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, nameToRank } from './solver.js';
+import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, nameToRank, DifficultyEvaluator } from './solver.js';
 import { TECHNIQUES, TECHNIQUES_ADVANCED } from './solver-techniques.js';
 SudokuLogicalSolver.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
 const rank1Names = new Set(TECHNIQUES.filter(t => t.rank === 1).map(t => t.name));
@@ -20,8 +20,8 @@ let persistentConnections = []; // Committed: Pairs of [fromVacantIdx, toInfIdx]
 let isCalculating = false;
 
 // Initial memory allocation for engine & sandbox
-SudokuDLX.allocateMemory();
-const evalSandbox = SudokuLogicalSolver.createSandbox();
+SudokuDLX.init();
+const evalSandbox = DifficultyEvaluator.createSandbox();
 
 // Initialize Grids
 function initGrids() {
@@ -294,12 +294,12 @@ async function requestEvaluation() {
     let baseDifficulty = 'INF';
 
     if (baseCount === 1) {
-        const resBit = SudokuLogicalSolver.evaluate(currentGrid, 4, evalSandbox);
+        const resBit = DifficultyEvaluator.evaluate(currentGrid, 4, evalSandbox);
         baseDifficulty = resBit.difficulty || 'basic';
     }
 
     const evalResult = baseCount === 1
-        ? SudokuLogicalSolver.evaluate(currentGrid, 4, evalSandbox)
+        ? DifficultyEvaluator.evaluate(currentGrid, 4, evalSandbox)
         : null;
 
     updateMiniBoard(currentGrid, evalResult);
@@ -337,7 +337,7 @@ async function requestEvaluation() {
             let isInf = false;
 
             if (count === 1) {
-                const resBit = SudokuLogicalSolver.evaluate(gridCopy, 4, evalSandbox);
+                const resBit = DifficultyEvaluator.evaluate(gridCopy, 4, evalSandbox);
                 diff = resBit.difficulty || 'basic';
             } else {
                 isInf = true;

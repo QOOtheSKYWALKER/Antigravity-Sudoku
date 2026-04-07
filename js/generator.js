@@ -3,13 +3,13 @@
  * Integrates heavy generation algorithms and worker entry point.
  */
 
-import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver } from './solver.js';
+import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, DifficultyEvaluator } from './solver.js';
 import { TECHNIQUES, TECHNIQUES_ADVANCED } from './solver-techniques.js';
 
 // Initialize memory for the worker context
-SudokuDLX.allocateMemory();
+SudokuDLX.init();
 SudokuLogicalSolver.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
-const evalSandbox = SudokuLogicalSolver.createSandbox();
+const evalSandbox = DifficultyEvaluator.createSandbox();
 
 /**
  * Worker Entry Point
@@ -26,7 +26,7 @@ self.onmessage = function (e) {
                 self.postMessage({ type: 'ERROR', taskId, message: 'Generation failed' });
             }
         } else if (type === 'ENGINE') {
-            const result = SudokuLogicalSolver.evaluate(grid, targetRank, evalSandbox);
+            const result = DifficultyEvaluator.evaluate(grid, targetRank, evalSandbox);
             self.postMessage({ type: 'ENGINE_SUCCESS', taskId, result });
         }
     } catch (err) {
@@ -187,7 +187,7 @@ class SudokuGenerator {
 
             for (let i = 0; i < 81; i++) resultPuzzle[i] = SudokuBitUtils.setSolution(resultPuzzle[i], solution[i]);
             SudokuBitUtils.updateAllCandidates(resultPuzzle);
-            const finalEval = SudokuLogicalSolver.evaluate(resultPuzzle, 4);
+            const finalEval = DifficultyEvaluator.evaluate(resultPuzzle, 4);
 
             const result = {
                 puzzle: resultPuzzle,
@@ -211,7 +211,7 @@ class SudokuGenerator {
 
     static _runReduction(initialClues, initialHash, targetRank, iterLimit, fillScratchBitGrid) {
         let bestClues = initialClues;
-        const currentRank = (clues) => SudokuLogicalSolver.evaluate(fillScratchBitGrid(clues), targetRank).rank ?? 1;
+        const currentRank = (clues) => DifficultyEvaluator.evaluate(fillScratchBitGrid(clues), targetRank).rank ?? 1;
 
         if (currentRank(initialClues) === targetRank) bestClues = initialClues;
 
