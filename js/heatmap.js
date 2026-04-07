@@ -110,10 +110,9 @@ function updateMiniBoard(grid, evalResult = null) {
 function getHeatmapColor(res) {
     if (res.isInf) return { bg: '#2b0000', text: '#f9d423', isDark: true };
 
-    const rank = nameToRank(res.difficulty);
+    const rank = nameToRank(res.difficulty) - 1;
     // Scale rank: 0 (basic) to 3 (hard/extreme)
     let t = rank / 3;
-    if (t < 0) t = 0;
     if (t > 1) t = 1;
 
     // Interpolate Saturation and Lightness
