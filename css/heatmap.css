@@ -165,8 +165,8 @@
         margin-right: 0;
     }
 
-    .suzoku-mini-board > .mini-cell:nth-child(n+19):nth-child(-n+27),
-    .suzoku-mini-board > .mini-cell:nth-child(n+46):nth-child(-n+54) {
+    .suzoku-mini-board>.mini-cell:nth-child(n+19):nth-child(-n+27),
+    .suzoku-mini-board>.mini-cell:nth-child(n+46):nth-child(-n+54) {
         margin-bottom: 1px;
     }
 
@@ -249,7 +249,7 @@
         opacity: 0.9;
         font-weight: 500;
         line-height: 1.4;
-        white-space: normal;
+        white-space: pre;
         text-align: right;
         margin-top: 4px;
     }
@@ -368,7 +368,8 @@
     }
 
     .connection-line {
-        stroke: #3b82f6; /* Blue dependency link */
+        stroke: #3b82f6;
+        /* Blue dependency link */
         stroke-width: 2;
         stroke-linecap: round;
         stroke-opacity: 0.6;
@@ -376,14 +377,17 @@
     }
 
     .persistent-line {
-        stroke: #ef4444; /* Red committed/removed link */
+        stroke: #ef4444;
+        /* Red committed/removed link */
         stroke-width: 3;
         stroke-linecap: round;
         stroke-opacity: 0.8;
         filter: drop-shadow(0 0 3px rgba(239, 68, 68, 0.5));
     }
 
-} /* end @layer components */
+}
+
+/* end @layer components */
 
 
 @layer states {
@@ -392,4 +396,6 @@
         transform: scale(0.98);
     }
 
-} /* end @layer states */
+}
+
+/* end @layer states */
