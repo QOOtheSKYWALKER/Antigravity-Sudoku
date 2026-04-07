@@ -1,160 +1,148 @@
 // ============================================================================
-// OCR Module - Image Recognition & Board Import
+// OCR Module - Image Recognition & Board Import (Refactored)
 // ============================================================================
 import { SudokuBitUtils, SudokuLogicalSolver, SudokuDLX } from './solver.js';
 import { t, applyLanguage, currentLang } from './i18n.js';
 import { GridDetector } from './ocr-engine.js';
 import { TECHNIQUES, TECHNIQUES_ADVANCED } from './solver-techniques.js';
-SudokuLogicalSolver.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
 
-const btnOcrOpen = document.getElementById('btn-ocr-open');
-const ocrModal = document.getElementById('ocr-main-modal');
-const ocrCorrectionModal = document.getElementById('ocr-correction-modal');
-const ocrStatus = document.getElementById('ocr-status');
-
-const uploadZone = document.getElementById('upload-zone');
-const fileInput = document.getElementById('file-input');
-const mainCanvas = document.getElementById('main-canvas');
-const progressBar = document.getElementById('ocr-progress-bar');
-const progressFill = document.getElementById('ocr-progress-fill');
-// messageEl is shared from script.js global scope
-
-// Initial memory allocation
-SudokuDLX.allocateMemory();
-
-
-let uploadedImage = null;
-let cellCanvases = [];
-let manualCorrectionCache = []; // {mat: cv.Mat, digit: number} - runtime cache
-const STORAGE_KEY_OCR_CACHE = 'sudoku-ocr-correction-cache';
-const MAX_OCR_CACHE_SIZE = 100;
-
-/**
- * Load OCR correction cache from localStorage
- */
-async function loadOcrCache() {
-    const stored = localStorage.getItem(STORAGE_KEY_OCR_CACHE);
-    if (!stored) return;
-
-    try {
-        const data = JSON.parse(stored);
-        // data is [{image: dataUrl, digit: number}, ...]
-
-        // Clear current runtime cache mats if any
-        manualCorrectionCache.forEach(c => {
-            if (c.mat && !c.mat.isDeleted()) c.mat.delete();
-        });
-        manualCorrectionCache = [];
-
-        for (const item of data) {
-            const img = new Image();
-            await new Promise((resolve) => {
-                img.onload = resolve;
-                img.src = item.image;
-            });
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = img.width;
-            tempCanvas.height = img.height;
-            const ctx = tempCanvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-
-            const mat = cv.imread(tempCanvas);
-            cv.cvtColor(mat, mat, cv.COLOR_RGBA2GRAY, 0);
-            manualCorrectionCache.push({ mat: mat, digit: item.digit });
+// --- Constants & Configuration ---
+const CONFIG = {
+    CACHE: {
+        STORAGE_KEY: 'sudoku-ocr-correction-cache',
+        MAX_SIZE: 100,
+        MATCH_THRESHOLD: 0.90,  // Cache lookup similarity
+        DEDUPE_THRESHOLD: 0.95  // Cache addition similarity
+    },
+    OCR: {
+        LANG: 'eng',
+        WHITELIST: '123456789',
+        PSM: 10 // SINGLE_CHAR (Note: Tesseract.PSM.SINGLE_CHAR typically 10)
+    },
+    UI: {
+        MODAL_STATES: {
+            UPLOAD: 'upload',
+            ANALYZING: 'analyzing',
+            CORRECTION: 'correction',
+            PREVIEW: 'preview'
         }
-        console.log(`Loaded ${manualCorrectionCache.length} OCR corrections from storage.`);
-    } catch (e) {
-        console.error("Failed to load OCR cache:", e);
     }
-}
+};
 
-/**
- * Save current manualCorrectionCache (representing unique image->digit pairs) to localStorage
- */
-function saveOcrCache() {
-    // We only store the last MAX_OCR_CACHE_SIZE items
-    const itemsToStore = manualCorrectionCache.slice(-MAX_OCR_CACHE_SIZE).map(c => {
-        // Convert Mat back to DataURL for storage
-        const tempCanvas = document.createElement('canvas');
-        cv.imshow(tempCanvas, c.mat);
-        return {
-            image: tempCanvas.toDataURL(),
-            digit: c.digit
-        };
-    });
-    localStorage.setItem(STORAGE_KEY_OCR_CACHE, JSON.stringify(itemsToStore));
-}
+// --- DOM Elements ---
+const DOM = {
+    btnOcrOpen: document.getElementById('btn-ocr-open'),
+    ocrModal: document.getElementById('ocr-main-modal'),
+    ocrCorrectionModal: document.getElementById('ocr-correction-modal'),
+    ocrStatus: document.getElementById('ocr-status'),
+    uploadZone: document.getElementById('upload-zone'),
+    unifiedDropZone: document.getElementById('ocr-unified-drop-zone'),
+    fileInput: document.getElementById('file-input'),
+    mainCanvas: document.getElementById('main-canvas'),
+    progressFill: document.getElementById('ocr-progress-fill'),
+    parsedPreview: document.getElementById('ocr-parsed-preview'),
+    manualGrid: document.getElementById('ocr-manual-grid'),
+    correctionList: document.getElementById('ocr-correction-list'),
+    btnCorrectionSubmit: document.getElementById('modal-btn-submit'),
+    btnManualPlay: document.getElementById('btn-manual-play'),
+    btnReRecognize: document.getElementById('btn-re-recognize'),
+    btnPaste: document.getElementById('btn-paste'),
+    btnUnifiedPaste: document.getElementById('btn-unified-paste'),
+    previewLabel: document.getElementById('ocr-preview-label')
+};
 
-/**
- * Clear OCR cache from both memory and storage
- */
-function clearOcrCache() {
-    manualCorrectionCache.forEach(c => {
-        if (c.mat && !c.mat.isDeleted()) c.mat.delete();
-    });
-    manualCorrectionCache = [];
-    localStorage.removeItem(STORAGE_KEY_OCR_CACHE);
-    console.log("OCR correction cache cleared.");
-}
+// --- Utilities ---
+const InputUtils = {
+    /**
+     * Set up common behavior for Sudoku digit inputs (1-9)
+     */
+    setupNumericInput(input, onValidSubmit = null) {
+        input.type = 'text';
+        input.inputMode = 'numeric';
+        input.maxLength = 1;
 
+        input.addEventListener('input', () => {
+            input.value = input.value.replace(/[^1-9]/g, '').slice(-1);
+        });
 
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                onValidSubmit?.();
+            }
+        });
 
-// Display an inline error message inside the upload zone
-function showUploadInlineError(msg) {
-    const el = document.getElementById('upload-inline-error');
-    if (!el) return;
-    el.textContent = msg;
-    el.classList.add('visible');
-}
+        input.addEventListener('focus', () => {
+            input.select();
+            // Mobile keyboard scroll assistance
+            setTimeout(() => input.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+        });
 
-function clearUploadInlineError() {
-    const el = document.getElementById('upload-inline-error');
-    if (el) el.classList.remove('visible');
-}
+        input.addEventListener('click', () => input.select());
+    }
+};
 
-/**
- * State Management for the OCR Modal
- */
-function setOcrModalState(state) {
-    ocrModal.dataset.state = state;
-}
+// --- OCR Session Controller ---
+class OcrSession {
+    constructor() {
+        this.cache = []; // {mat: cv.Mat, digit: number}
+        this.cellCanvases = [];
+        this.gridResult = new Uint32Array(81);
+        this.groupCorrectionQueue = [];
+        this.recognizedCellsCount = 0;
+        this.ocrLibrariesLoaded = false;
 
+        SudokuDLX.allocateMemory();
+        SudokuLogicalSolver.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
+    }
 
-let ocrLibrariesLoaded = false;
-
-function loadOcrLibrariesV2() {
-    console.log("loadOcrLibrariesV2 called - Checking readiness...");
-    return new Promise((resolve, reject) => {
-        if (ocrLibrariesLoaded) {
-            console.log("OCR Libraries already marked as loaded");
-            resolve();
-            return;
+    // --- State & UI Helpers ---
+    setState(state) {
+        DOM.ocrModal.dataset.state = state;
+        if (state === CONFIG.UI.MODAL_STATES.UPLOAD) {
+            this.clearInlineError();
         }
+    }
+
+    updateStatus(messageKey, useRaw = false) {
+        DOM.ocrStatus.textContent = useRaw ? messageKey : t(messageKey);
+    }
+
+    updateProgress(percent) {
+        DOM.progressFill.style.setProperty('--progress', `${percent}%`);
+    }
+
+    showInlineError(msgKey) {
+        const el = document.getElementById('upload-inline-error');
+        if (el) {
+            el.textContent = t(msgKey);
+            el.classList.add('visible');
+        }
+    }
+
+    clearInlineError() {
+        const el = document.getElementById('upload-inline-error');
+        if (el) el.classList.remove('visible');
+    }
+
+    // --- Resource Loading ---
+    async ensureLibraries() {
+        if (this.ocrLibrariesLoaded) return;
 
         const isReady = () => {
-            if (typeof cv !== 'undefined') {
-                if (cv instanceof Promise) {
-                    cv.then(target => { window.cv = target; }).catch(console.error);
-                    return false;
-                }
-                if (cv.Mat && typeof cv.Mat === 'function') {
-                    return typeof Tesseract !== 'undefined';
-                }
+            if (typeof cv !== 'undefined' && cv.Mat && typeof cv.Mat === 'function') {
+                return typeof Tesseract !== 'undefined';
             }
             return false;
         };
 
-
         if (isReady()) {
-            console.log("OCR Libraries are ready immediately");
-            ocrLibrariesLoaded = true;
-            resolve();
+            this.ocrLibrariesLoaded = true;
             return;
         }
 
-        // Load OpenCV dynamically (it typically exports window.cv)
+        // Script loading
         if (typeof cv === 'undefined' && !document.getElementById('opencv-script')) {
-            console.log("Injecting OpenCV.js...");
             const s = document.createElement('script');
             s.id = 'opencv-script';
             s.src = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.9.0-release.3/dist/opencv.js';
@@ -162,355 +150,317 @@ function loadOcrLibrariesV2() {
             document.head.appendChild(s);
         }
 
-        // Load Tesseract via dynamic ESM import immediately
         if (typeof Tesseract === 'undefined') {
-            console.log("Dynamically importing Tesseract.js module...");
-            import('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js')
-                .then((module) => {
-                    window.Tesseract = module.default || module;
-                })
-                .catch(err => console.error("Failed to load Tesseract:", err));
+            const module = await import('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js');
+            window.Tesseract = module.default || module;
         }
 
-        console.log("Waiting for OCR Libraries (CV/Tesseract)...");
-        let retryCount = 0;
-        const maxRetries = 200; // 20 seconds
-        const checkReady = setInterval(() => {
-            if (isReady()) {
-                console.log("OCR Libraries ready after " + (retryCount * 100) + "ms");
-                clearInterval(checkReady);
-                ocrLibrariesLoaded = true;
-                resolve();
+        return new Promise((resolve, reject) => {
+            let retries = 0;
+            const interval = setInterval(() => {
+                if (isReady()) {
+                    clearInterval(interval);
+                    this.ocrLibrariesLoaded = true;
+                    resolve();
+                }
+                if (++retries > 200) {
+                    clearInterval(interval);
+                    reject(new Error("OCR libraries timeout"));
+                }
+            }, 100);
+        });
+    }
+
+    // --- Cache Management ---
+    async loadCache() {
+        const stored = localStorage.getItem(CONFIG.CACHE.STORAGE_KEY);
+        if (!stored) return;
+
+        try {
+            const data = JSON.parse(stored);
+            this.clearCache(false); // Memory clear only
+
+            for (const item of data) {
+                const img = new Image();
+                await new Promise(r => { img.onload = r; img.src = item.image; });
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width; canvas.height = img.height;
+                canvas.getContext('2d', { willReadFrequently: true }).drawImage(img, 0, 0);
+
+                const mat = cv.imread(canvas);
+                cv.cvtColor(mat, mat, cv.COLOR_RGBA2GRAY, 0);
+                this.cache.push({ mat: mat, digit: item.digit });
             }
-            retryCount++;
-            if (retryCount > maxRetries) {
-                console.error("OCR libraries TIMEOUT.", {
-                    cv: typeof cv !== 'undefined',
-                    Tess: typeof Tesseract !== 'undefined'
-                });
-                clearInterval(checkReady);
-                reject(new Error("OCR libraries failed to load (timeout)"));
-            }
-        }, 100);
-    });
-}
-
-// OCR modal open/close
-btnOcrOpen.addEventListener('click', () => {
-    ocrModal.showModal();
-    applyLanguage(currentLang);
-
-    // Reset to upload state
-    setOcrModalState('upload');
-
-    uploadedImage = null;
-    fileInput.value = '';
-    clearUploadInlineError();
-});
-
-
-
-// Main OCR modal Enter key support (Close)
-ocrModal.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-        const activeElement = document.activeElement;
-        // Only close if not focus on button/input (to avoid conflict with nested modal)
-        if (activeElement.tagName !== 'BUTTON' && activeElement.tagName !== 'INPUT' && activeElement.tagName !== 'TEXTAREA') {
-            e.preventDefault();
-            ocrModal.close();
+        } catch (e) {
+            console.error("Cache load failed:", e);
         }
     }
-});
 
-// Close dialog when clicking on backdrop
-[ocrModal, ocrCorrectionModal].forEach(modal => {
-    if (!modal) return;
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.close();
-    });
-});
+    saveCache() {
+        const items = this.cache.slice(-CONFIG.CACHE.MAX_SIZE).map(c => {
+            const canvas = document.createElement('canvas');
+            canvas.getContext('2d', { willReadFrequently: true });
+            cv.imshow(canvas, c.mat);
+            return { image: canvas.toDataURL(), digit: c.digit };
+        });
+        localStorage.setItem(CONFIG.CACHE.STORAGE_KEY, JSON.stringify(items));
+    }
 
-// Clipboard paste support (PC/Mobile)
-document.addEventListener('paste', (e) => {
-    // Ignore if modal is not open
-    if (!ocrModal.open) return;
+    clearCache(removeFromStorage = true) {
+        this.cache.forEach(c => { if (c.mat && !c.mat.isDeleted()) c.mat.delete(); });
+        this.cache = [];
+        if (removeFromStorage) localStorage.removeItem(CONFIG.CACHE.STORAGE_KEY);
+    }
 
-    // Catch image from clipboard items
-    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-    for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.type.indexOf('image/') !== -1) {
-            const file = item.getAsFile();
-            if (file) {
-                e.preventDefault();
-                handleFile(file);
+    // --- Pipeline Steps ---
+
+    /**
+     * Step 1: Detect Grid
+     */
+    async pipelineDetectGrid() {
+        this.updateStatus('ocrStatusLoading');
+        this.updateProgress(5);
+
+        const result = await GridDetector.detect(DOM.mainCanvas, (p) => {
+            this.updateProgress(Math.round(p * 30));
+        });
+        this.cellCanvases = result.cells;
+        return result.groups;
+    }
+
+    /**
+     * Step 2: Recognize Digits (Cache -> OCR)
+     */
+    async pipelineRecognize(groups) {
+        const worker = await Tesseract.createWorker(CONFIG.OCR.LANG);
+        await worker.setParameters({
+            tessedit_char_whitelist: CONFIG.OCR.WHITELIST,
+            tessedit_pageseg_mode: CONFIG.OCR.PSM
+        });
+
+        this.updateStatus('ocrStatusExtracting');
+        this.recognizedCellsCount = 0;
+        this.groupCorrectionQueue = [];
+
+        for (const group of groups) {
+            let digit = await this.tryMatchCache(group.canvases[0]);
+
+            if (digit === 0) {
+                digit = await this.performTesseract(worker, group.canvases);
+            }
+
+            if (digit !== 0) {
+                group.indices.forEach(idx => this.gridResult[idx] = SudokuBitUtils.createSolved(digit, true));
+            } else {
+                this.groupCorrectionQueue.push({ indices: group.indices, canvas: group.canvases[0] });
+            }
+
+            this.recognizedCellsCount += group.indices.length;
+            this.updateProgress(30 + Math.round((this.recognizedCellsCount / 81) * 70));
+        }
+
+        await worker.terminate();
+    }
+
+    async tryMatchCache(canvas) {
+        if (this.cache.length === 0) return 0;
+        
+        const currentMat = cv.imread(canvas);
+        cv.cvtColor(currentMat, currentMat, cv.COLOR_RGBA2GRAY, 0);
+        let foundDigit = 0;
+
+        for (const item of this.cache) {
+            const res = new cv.Mat();
+            cv.matchTemplate(currentMat, item.mat, res, cv.TM_CCOEFF_NORMED);
+            const mm = cv.minMaxLoc(res);
+            const match = mm.maxVal > CONFIG.CACHE.MATCH_THRESHOLD;
+            res.delete();
+
+            if (match) {
+                foundDigit = item.digit;
                 break;
             }
         }
+        currentMat.delete();
+        return foundDigit;
     }
-});
 
-// Mobile: explicit clipboard read button
-async function readFromClipboard() {
-    clearUploadInlineError();
-    try {
-        const clipboardItems = await navigator.clipboard.read();
-        for (const clipboardItem of clipboardItems) {
-            const imageTypes = clipboardItem.types.filter(type => type.startsWith('image/'));
-            for (const imageType of imageTypes) {
-                const blob = await clipboardItem.getType(imageType);
-                const file = new File([blob], "pasted-image.png", { type: imageType });
-                handleFile(file);
-                return;
+    async performTesseract(worker, canvases) {
+        for (const canvas of canvases) {
+            const ret = await worker.recognize(canvas);
+            const text = ret.data.text.trim();
+            if (text.length === 1 && text >= '1' && text <= '9') {
+                const digit = parseInt(text, 10);
+                this.addToCache(canvas, digit);
+                return digit;
             }
         }
-        showUploadInlineError(t('clipboardError'));
-    } catch (err) {
-        console.error("Paste error:", err);
-        showUploadInlineError(t('clipboardNoAccess'));
+        return 0;
     }
-}
 
-// Mobile: explicit clipboard read button
-document.getElementById('btn-paste').addEventListener('click', async (e) => {
-    e.stopPropagation(); // Prevent file selection dialog from parent upload-zone click
-    await readFromClipboard();
-});
+    addToCache(canvas, digit, threshold = CONFIG.CACHE.DEDUPE_THRESHOLD) {
+        const mat = cv.imread(canvas);
+        cv.cvtColor(mat, mat, cv.COLOR_RGBA2GRAY, 0);
 
-// Inline unified paste button
-document.getElementById('btn-unified-paste').addEventListener('click', async (e) => {
-    e.stopPropagation();
-    await readFromClipboard();
-});
-
-// File loading handler
-function handleFile(file) {
-    if (!file.type.startsWith('image/')) {
-        showUploadInlineError(t('invalidFileType'));
-        return;
-    }
-    clearUploadInlineError();
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-            uploadedImage = img;
-
-            // Draw full image to canvas
-            const ctx = mainCanvas.getContext('2d');
-            mainCanvas.width = img.width;
-            mainCanvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-
-            ocrStatus.textContent = t('ocrStatusLoaded');
-            cellCanvases = [];
-
-            // Trigger analysis immediately
-            startOCRAnalysis();
-        };
-        img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-}
-
-/**
- * Shared logic for drag & drop zones
- */
-function setupUploadListeners(zone) {
-    if (!zone) return;
-    zone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        zone.classList.add('dragover');
-    });
-
-    zone.addEventListener('dragleave', () => {
-        zone.classList.remove('dragover');
-    });
-
-    zone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        zone.classList.remove('dragover');
-        if (e.dataTransfer.files.length > 0) {
-            handleFile(e.dataTransfer.files[0]);
+        // Deduplicate before adding
+        let exists = false;
+        for (const item of this.cache) {
+            const res = new cv.Mat();
+            cv.matchTemplate(mat, item.mat, res, cv.TM_CCOEFF_NORMED);
+            if (cv.minMaxLoc(res).maxVal > threshold) exists = true;
+            res.delete();
+            if (exists) break;
         }
-    });
 
-    zone.addEventListener('click', (e) => {
-        // Only trigger file input if the click wasn't on a button
-        if (e.target !== fileInput && !e.target.closest('button')) {
-            fileInput.click();
-        }
-    });
-}
-
-// Initialize listeners
-setupUploadListeners(uploadZone);
-setupUploadListeners(document.getElementById('ocr-unified-drop-zone'));
-
-fileInput.addEventListener('change', (e) => {
-    if (e.target.files.length > 0) {
-        handleFile(e.target.files[0]);
-    }
-});
-
-
-// Modal state
-
-let finalValidatedGrid = null;
-
-function hideAllOcrStates() {
-    // Note: State management now handled via setOcrModalState in CSS.
-    // This function can be kept for UI resets if needed.
-    const manualGrid = document.getElementById('ocr-manual-grid');
-    const previewLabel = document.getElementById('ocr-preview-label');
-    if (previewLabel) previewLabel.textContent = t('correctionGrid');
-}
-
-/**
- * Generate parsed board preview
- */
-function renderParsedPreview(grid1D, unrecognizedIndices = []) {
-    const previewContainer = document.getElementById('ocr-parsed-preview');
-    if (!previewContainer) return;
-    previewContainer.innerHTML = '';
-
-    grid1D.forEach((item, idx) => {
-        const val = (grid1D instanceof Uint32Array) ? SudokuBitUtils.getValue(item) : item;
-        const cell = document.createElement('div');
-        cell.className = 'preview-cell';
-
-        // Handle both numeric array and {index: i, ...} object array
-        const isUnrecognized = unrecognizedIndices.some(item =>
-            (typeof item === 'number' ? item === idx : (item && item.index === idx))
-        );
-
-        if (isUnrecognized) {
-            cell.textContent = '?';
-            cell.classList.add('unrecognized');
-        } else if (val !== 0) {
-            cell.textContent = val;
+        if (!exists) {
+            this.cache.push({ mat, digit });
+            this.saveCache();
         } else {
-            cell.innerHTML = '&nbsp;'; // Prevent empty cells from collapsing
+            mat.delete();
         }
-
-        previewContainer.appendChild(cell);
-    });
-}
-
-function applyGridToBoardAndCloseModal(grid1D) {
-    const isBit = (grid1D instanceof Uint32Array);
-    const resultEval = SudokuLogicalSolver.evaluate(grid1D, 4);
-
-    const solBuffer = new Uint32Array(grid1D);
-    SudokuDLX.solveAndFill(solBuffer);
-
-    const puzzleBits = isBit ? grid1D : SudokuBitUtils.fromUint8Array(grid1D, true);
-    const finalPuzzle = new Uint32Array(81);
-
-    for (let i = 0; i < 81; i++) {
-        const solDigit = SudokuBitUtils.getValue(solBuffer[i]);
-        finalPuzzle[i] = SudokuBitUtils.setSolution(puzzleBits[i], solDigit);
     }
 
-    // 解析結果をイベントで通知し、UI処理はmain.jsに委ねる
-    document.dispatchEvent(new CustomEvent('ocr:complete', {
-        detail: {
-            puzzle: finalPuzzle,
-            technique: resultEval.technique
+    /**
+     * Main Pipeline Controller
+     */
+    async startWorkflow() {
+        this.setState(CONFIG.UI.MODAL_STATES.ANALYZING);
+        this.gridResult.fill(0);
+
+        try {
+            await this.ensureLibraries();
+            await this.loadCache();
+
+            const groups = await this.pipelineDetectGrid();
+            await this.pipelineRecognize(groups);
+
+            if (this.groupCorrectionQueue.length > 0) {
+                this.handleCorrectionFlow();
+            } else {
+                this.handleCompletionFlow();
+            }
+        } catch (err) {
+            console.error("OCR Workflow Error:", err);
+            this.handleFailure(err.toString());
         }
-    }));
-}
+    }
 
+    handleCorrectionFlow() {
+        this.setState(CONFIG.UI.MODAL_STATES.CORRECTION);
+        this.renderParsedPreview([]); // Pass empty "extra unrecognized" because it's handled via groupCorrectionQueue
+        showCorrectionSubModal(this.groupCorrectionQueue, this.gridResult, (finalGrid) => {
+            this.gridResult = finalGrid;
+            this.handleCompletionFlow();
+        });
+    }
 
-// Display state for total analysis failure (grid detection / hint shortage)
-function showOcrTotalFailure(errorMsg = null) {
-    ocrStatus.textContent = '';
-    setOcrModalState('correction');
-    document.getElementById('ocr-preview-label').textContent = t('originalImageFailed');
+    handleCompletionFlow() {
+        this.setState(CONFIG.UI.MODAL_STATES.PREVIEW);
+        DOM.previewLabel.textContent = t('parsedGrid');
+        this.updateStatus('', true);
+        this.renderParsedPreview([]);
+        this.validateAndApply();
+    }
 
-    // Show empty board for manual input
-    renderManualCorrectionGrid(new Uint8Array(81));
+    handleFailure(msg) {
+        this.updateStatus('', true);
+        this.setState(CONFIG.UI.MODAL_STATES.CORRECTION);
+        DOM.previewLabel.textContent = t('originalImageFailed');
+        renderManualEditableGrid(new Uint8Array(81));
+    }
 
-    if (errorMsg) {
-        console.warn("OCR Total Failure:", errorMsg);
+    // --- UI Rendering ---
+    renderParsedPreview(unrecognizedIndices = []) {
+        const container = DOM.parsedPreview || DOM.manualGrid;
+        if (!container) return;
+        container.innerHTML = '';
+
+        this.gridResult.forEach((item, idx) => {
+            const val = SudokuBitUtils.getValue(item);
+            const cell = document.createElement('div');
+            cell.className = 'preview-cell';
+
+            const isUnrecognized = unrecognizedIndices.some(u => 
+                (typeof u === 'number' ? u === idx : u.index === idx)
+            );
+
+            if (isUnrecognized) {
+                cell.textContent = '?';
+                cell.classList.add('unrecognized');
+            } else if (val !== 0) {
+                cell.textContent = val;
+            } else {
+                cell.innerHTML = '&nbsp;';
+            }
+            container.appendChild(cell);
+        });
+    }
+
+    validateAndApply() {
+        const grid = this.gridResult;
+        let isRuleValid = true;
+
+        for (let i = 0; i < 81; i++) {
+            const raw = grid[i];
+            const val = SudokuBitUtils.getValue(raw);
+            if (val !== 0) {
+                grid[i] = 0;
+                if (!SudokuLogicalSolver.isValid(grid, i, val)) isRuleValid = false;
+                grid[i] = raw;
+            }
+            if (!isRuleValid) break;
+        }
+
+        const isSolvable = isRuleValid && (SudokuDLX.countSolutions(grid) === 1);
+
+        if (isRuleValid && isSolvable) {
+            this.finalizePuzzle();
+        } else {
+            this.setState(CONFIG.UI.MODAL_STATES.CORRECTION);
+            DOM.previewLabel.textContent = t('correctionGrid');
+            renderManualEditableGrid(grid);
+        }
+    }
+
+    finalizePuzzle() {
+        const resultEval = SudokuLogicalSolver.evaluate(this.gridResult, 4);
+        const solBuffer = new Uint32Array(this.gridResult);
+        SudokuDLX.solveAndFill(solBuffer);
+
+        const finalPuzzle = new Uint32Array(81);
+        for (let i = 0; i < 81; i++) {
+            const solDigit = SudokuBitUtils.getValue(solBuffer[i]);
+            finalPuzzle[i] = SudokuBitUtils.setSolution(this.gridResult[i], solDigit);
+        }
+
+        document.dispatchEvent(new CustomEvent('ocr:complete', {
+            detail: { 
+                puzzle: finalPuzzle,
+                technique: resultEval.technique
+            }
+        }));
     }
 }
 
-function proceedToValidation(grid1D) {
-    validateAndApplyOcrGrid(grid1D);
-}
+const session = new OcrSession();
 
-/**
- * Show modal for user to manually input unrecognized digits
- */
-function showOcrCorrectionModal(queue, gridResult) {
-    const modal = ocrCorrectionModal;
-    const listContainer = document.getElementById('ocr-correction-list');
-    const submitBtn = document.getElementById('modal-btn-submit');
-    listContainer.innerHTML = '';
+// --- External Modal: Manual Digit Correction ---
+function showCorrectionSubModal(queue, gridResult, onComplete) {
+    DOM.correctionList.innerHTML = '';
     const inputs = [];
 
-    let isFinishing = false;
     const finish = () => {
-        if (isFinishing) return;
-        isFinishing = true;
-
-        // Register to cache and apply values
         inputs.forEach(item => {
             const val = parseInt(item.input.value, 10);
             if (!isNaN(val) && val >= 1 && val <= 9) {
-                // Apply to grid
-                item.indices.forEach(idx => {
-                    gridResult[idx] = SudokuBitUtils.createSolved(val, true);
-                });
-
-                // Save to cache (memory + storage)
-                let mat = cv.imread(item.canvas);
-                cv.cvtColor(mat, mat, cv.COLOR_RGBA2GRAY, 0);
-                manualCorrectionCache.push({ mat: mat, digit: val });
-                saveOcrCache();
+                item.indices.forEach(idx => gridResult[idx] = SudokuBitUtils.createSolved(val, true));
+                session.addToCache(item.canvas, val);
             }
         });
-
-        modal.removeEventListener('keydown', onModalKeyDown);
-        modal.removeEventListener('cancel', onCancel);
-        modal.removeEventListener('click', onBackdropClick);
-        modal.removeEventListener('close', finish);
-
-        if (modal.open) modal.close();
-
-        // Target the manual-grid element if parsed-preview is missing
-        const parsedPreview = document.getElementById('ocr-parsed-preview') || document.getElementById('ocr-manual-grid');
-        if (parsedPreview) {
-            parsedPreview.textContent = ''; // Clear
-        }
-        setOcrModalState('preview');
-        renderParsedPreview(gridResult);
-        proceedToValidation(gridResult);
+        DOM.ocrCorrectionModal.close();
+        onComplete(gridResult);
     };
-
-    const onModalKeyDown = (e) => {
-        if (e.key === 'Enter' && e.target === modal) {
-            e.preventDefault();
-            finish();
-        }
-    };
-    const onCancel = (e) => {
-        e.preventDefault();
-        finish();
-    };
-    const onBackdropClick = (e) => {
-        if (e.target === modal) {
-            finish();
-        }
-    };
-    modal.addEventListener('keydown', onModalKeyDown);
-    modal.addEventListener('cancel', onCancel);
-    modal.addEventListener('click', onBackdropClick);
-    modal.addEventListener('close', finish, { once: true });
-
-    modal.showModal();
 
     queue.forEach((item, idx) => {
         const div = document.createElement('div');
@@ -518,348 +468,140 @@ function showOcrCorrectionModal(queue, gridResult) {
 
         const img = document.createElement('img');
         img.src = item.canvas.toDataURL();
-
+        
         const input = document.createElement('input');
-        input.type = 'text';
-        input.inputMode = 'numeric';
-        input.pattern = '[1-9]*';
-        input.maxLength = 1;
-        input.placeholder = '?';
-
-        // Input restriction
-        input.addEventListener('input', (e) => {
-            input.value = input.value.replace(/[^1-9]/g, '').slice(-1);
+        InputUtils.setupNumericInput(input, () => {
+            if (idx < queue.length - 1) inputs[idx + 1].input.focus();
+            else finish();
         });
 
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                if (idx < queue.length - 1) {
-                    inputs[idx + 1].input.focus();
-                } else {
-                    finish();
-                }
-            }
-        });
+        div.append(img, input);
+        DOM.correctionList.appendChild(div);
+        inputs.push({ input, indices: item.indices, canvas: item.canvas });
 
-        div.appendChild(img);
-        div.appendChild(input);
-        listContainer.appendChild(div);
-
-        inputs.push({
-            input: input,
-            indices: item.indices,
-            canvas: item.canvas
-        });
-
-        // Focus first element with scroll assistance
-        if (idx === 0) {
-            setTimeout(() => {
-                input.focus();
-                input.scrollIntoView({ block: 'center' });
-            }, 100);
-        }
-
-        input.addEventListener('focus', () => {
-            input.select();
-            // Scroll with delay for iOS/Android keyboard animation smooth transition
-            setTimeout(() => input.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
-        });
+        if (idx === 0) setTimeout(() => input.focus(), 100);
     });
 
-    // Use onclick to avoid duplicate addEventListener
-    submitBtn.onclick = () => finish();
+    DOM.btnCorrectionSubmit.onclick = finish;
+    DOM.ocrCorrectionModal.showModal();
 }
 
-
-// Auto analysis trigger function
-async function startOCRAnalysis() {
-    setOcrModalState('analyzing');
-    ocrStatus.textContent = t('ocrStatusLoading');
-
-    progressFill.style.setProperty('--progress', '0%');
-
-    try {
-        // Step 0: Wait for libraries and load persistent cache
-        await loadOcrLibrariesV2();
-        await loadOcrCache();
-        progressFill.style.setProperty('--progress', '5%');
-
-        // Start new image recognition flow
-        const result = await GridDetector.detect(mainCanvas, (p) => {
-            progressFill.style.setProperty('--progress', `${Math.round(p * 30)}%`);
-        });
-        cellCanvases = result.cells;
-        const groups = result.groups;
-
-        const gridResult = new Uint32Array(81);
-
-        // --- Step 2: OCR per group ---
-        const worker = await Tesseract.createWorker('eng');
-        await worker.setParameters({
-            tessedit_char_whitelist: '123456789', // Exclude 0 (no 0 in Sudoku)
-            tessedit_pageseg_mode: Tesseract.PSM.SINGLE_CHAR
-        });
-
-        ocrStatus.textContent = t('ocrStatusExtracting');
-        progressFill.style.setProperty('--progress', '30%');
-
-        const correctionQueue = [];
-        // Keep group info (one correction fixes entire group)
-        const groupCorrectionQueue = [];
-
-        let processedCellsCount = 0;
-
-        for (const group of groups) {
-            let recognizedNum = 0;
-
-            // Check against cache (previous manual corrections)
-            if (manualCorrectionCache.length > 0) {
-                let repCanvas = group.canvases[0];
-                let currentMat = cv.imread(repCanvas);
-                cv.cvtColor(currentMat, currentMat, cv.COLOR_RGBA2GRAY, 0);
-
-                for (const cache of manualCorrectionCache) {
-                    let res = new cv.Mat();
-                    cv.matchTemplate(currentMat, cache.mat, res, cv.TM_CCOEFF_NORMED);
-                    let mm = cv.minMaxLoc(res);
-                    if (mm.maxVal > 0.90) {
-                        recognizedNum = cache.digit;
-                        res.delete();
-                        break;
-                    }
-                    res.delete();
-                }
-                currentMat.delete();
-            }
-
-            // If not in cache, run OCR
-            if (recognizedNum === 0) {
-                // Try next canvas in group if first fails
-                for (const canvas of group.canvases) {
-                    const ret = await worker.recognize(canvas);
-                    const text = ret.data.text.trim();
-                    let num = 0;
-                    if (text.length === 1 && text >= '1' && text <= '9') {
-                        num = parseInt(text, 10);
-                    }
-
-                    if (num !== 0) {
-                        recognizedNum = num;
-
-                        // Also cache successful OCR results to speed up future scans
-                        const currentMat = cv.imread(canvas);
-                        cv.cvtColor(currentMat, currentMat, cv.COLOR_RGBA2GRAY, 0);
-
-                        // Simple deduplication: only add if not already very similar to something in cache
-                        let alreadyCached = false;
-                        for (const cache of manualCorrectionCache) {
-                            let res = new cv.Mat();
-                            cv.matchTemplate(currentMat, cache.mat, res, cv.TM_CCOEFF_NORMED);
-                            let mm = cv.minMaxLoc(res);
-                            if (mm.maxVal > 0.95) {
-                                alreadyCached = true;
-                                res.delete();
-                                break;
-                            }
-                            res.delete();
-                        }
-
-                        if (!alreadyCached) {
-                            manualCorrectionCache.push({ mat: currentMat, digit: recognizedNum });
-                            saveOcrCache();
-                        } else {
-                            currentMat.delete();
-                        }
-
-                        break; // Success from any canvas confirms the group
-                    }
-                }
-            }
-
-            if (recognizedNum !== 0) {
-                for (const idx of group.indices) {
-                    gridResult[idx] = SudokuBitUtils.createSolved(recognizedNum, true);
-                }
-            } else {
-                // Add to correction queue per group
-                groupCorrectionQueue.push({
-                    indices: group.indices,
-                    canvas: group.canvases[0]
-                });
-                // Keep for compatibility (renderParsedPreview, etc.)
-                for (const idx of group.indices) {
-                    correctionQueue.push({ index: idx, canvas: cellCanvases[idx] });
-                }
-            }
-
-
-            processedCellsCount += group.indices.length;
-            progressFill.style.setProperty('--progress', `${30 + Math.round((processedCellsCount / 81) * 70)}%`);
-        }
-
-
-        await worker.terminate();
-
-        // If there are unrecognized cells, show correction modal
-        if (groupCorrectionQueue.length > 0) {
-            const parsedPreview = document.getElementById('ocr-parsed-preview') || document.getElementById('ocr-manual-grid');
-            if (parsedPreview) {
-                parsedPreview.textContent = '';
-            }
-            setOcrModalState('correction');
-            renderParsedPreview(gridResult, correctionQueue);
-
-            showOcrCorrectionModal(groupCorrectionQueue, gridResult);
-            return;
-        }
-
-        // All recognized: show preview and proceed
-        setOcrModalState('preview');
-        document.getElementById('ocr-preview-label').textContent = t('parsedGrid');
-
-        renderParsedPreview(gridResult);
-        proceedToValidation(gridResult);
-        return;
-
-    } catch (err) {
-        console.error(err);
-        showOcrTotalFailure(err.toString());
-    }
-}
-
-/**
- * Validate grid1D: check rule violations, solvability, and route to appropriate flow
- */
-function validateAndApplyOcrGrid(grid1D) {
-    let isRuleValid = true;
-
-    for (let i = 0; i < 81; i++) {
-        const raw = grid1D[i];
-        const val = (grid1D instanceof Uint32Array) ? SudokuBitUtils.getValue(raw) : raw;
-        if (val !== 0) {
-            grid1D[i] = 0;
-            // Use the verified isValid method from solver logic
-            if (!SudokuLogicalSolver.isValid(grid1D, i, val)) {
-                isRuleValid = false;
-            }
-            grid1D[i] = raw;
-        }
-    }
-
-    let isSolvable = false;
-    if (isRuleValid) {
-        // DLX uniqueness check
-        const solutionsCount = SudokuDLX.countSolutions(grid1D);
-        isSolvable = (solutionsCount === 1);
-    }
-
-    ocrStatus.textContent = '';
-
-    if (isRuleValid && isSolvable) {
-        applyGridToBoardAndCloseModal(grid1D);
-    } else {
-        // Route D: rule violation / show correction
-        setOcrModalState('correction');
-        document.getElementById('ocr-preview-label').textContent = t('correctionGrid');
-        renderManualCorrectionGrid(grid1D);
-    }
-}
-
-/**
- * Build 81-cell interactive grid for manual correction
- */
-function renderManualCorrectionGrid(grid1D) {
-    const gridContainer = document.getElementById('ocr-manual-grid');
-    gridContainer.innerHTML = '';
-
+// --- Internal View: 81-cell Manual Grid ---
+function renderManualEditableGrid(initialGrid) {
+    DOM.manualGrid.innerHTML = '';
     for (let i = 0; i < 81; i++) {
         const input = document.createElement('input');
-        input.type = 'text';
-        input.inputMode = 'numeric';
-        input.pattern = '[0-9]*';
         input.dataset.index = i;
-
-        const raw = grid1D[i];
-        const val = (grid1D instanceof Uint32Array) ? SudokuBitUtils.getValue(raw) : raw;
-        if (val && val !== 0) {
-            input.value = val;
-        } else {
-            input.value = '';
-        }
-
-        input.addEventListener('keydown', (e) => {
-            if (['e', 'E', '+', '-', '.'].includes(e.key)) {
-                e.preventDefault();
-            }
-        });
-        input.addEventListener('focus', () => {
-            input.select();
-            // Ensure active cell is not hidden by mobile keyboard
-            setTimeout(() => input.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
-        });
-        input.addEventListener('click', () => input.select());
-        input.addEventListener('input', (e) => {
-            // Filter out non-digits
-            let val = input.value.replace(/[^1-9]/g, '');
-
-            // Limit to single digit
-            if (val.length > 0) {
-                val = val.slice(-1); // Always take the last character if multiple
-            }
-
-            input.value = val;
-        });
-
-        gridContainer.appendChild(input);
+        const val = SudokuBitUtils.getValue(initialGrid[i]);
+        input.value = val !== 0 ? val : '';
+        
+        InputUtils.setupNumericInput(input);
+        DOM.manualGrid.appendChild(input);
     }
 }
 
-/**
- * PLAY button handler for manual correction grid
- */
-async function handleManualPlayGrid(e) {
-    const btn = e.currentTarget;
-    const oldText = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = t('ocrVerifying');
+// --- UI Event Handlers ---
 
-    const inputs = document.querySelectorAll('#ocr-manual-grid input');
-    const newGrid1D = new Uint32Array(81);
+function handleFile(file) {
+    if (!file.type.startsWith('image/')) return session.showInlineError('invalidFileType');
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            DOM.mainCanvas.width = img.width;
+            DOM.mainCanvas.height = img.height;
+            DOM.mainCanvas.getContext('2d', { willReadFrequently: true }).drawImage(img, 0, 0);
+            session.startWorkflow();
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
 
-    inputs.forEach(input => {
-        const idx = parseInt(input.dataset.index, 10);
-        const val = parseInt(input.value, 10);
-        if (!isNaN(val) && val >= 1 && val <= 9) {
-            newGrid1D[idx] = SudokuBitUtils.createSolved(val, true);
+// Global Paste Support
+document.addEventListener('paste', (e) => {
+    if (!DOM.ocrModal.open) return;
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (const item of items) {
+        if (item.type.indexOf('image/') !== -1) {
+            handleFile(item.getAsFile());
+            break;
         }
+    }
+});
+
+async function readFromClipboard() {
+    try {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+            const types = item.types.filter(t => t.startsWith('image/'));
+            if (types.length) {
+                const blob = await item.getType(types[0]);
+                handleFile(new File([blob], "paste.png", { type: types[0] }));
+                return;
+            }
+        }
+        session.showInlineError('clipboardError');
+    } catch { session.showInlineError('clipboardNoAccess'); }
+}
+
+// Setup Upload Zones
+[DOM.uploadZone, DOM.unifiedDropZone].forEach(zone => {
+    if (!zone) return;
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    zone.addEventListener('click', (e) => {
+        if (e.target !== DOM.fileInput && !e.target.closest('button')) DOM.fileInput.click();
+    });
+});
+
+DOM.fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length) handleFile(e.target.files[0]);
+});
+
+DOM.btnOcrOpen.addEventListener('click', () => {
+    session.setState(CONFIG.UI.MODAL_STATES.UPLOAD);
+    DOM.ocrModal.showModal();
+    applyLanguage(currentLang);
+});
+
+DOM.btnManualPlay.addEventListener('click', async () => {
+    DOM.btnManualPlay.disabled = true;
+    const originalText = DOM.btnManualPlay.textContent;
+    DOM.btnManualPlay.textContent = t('ocrVerifying');
+
+    const inputs = DOM.manualGrid.querySelectorAll('input');
+    const newGrid = new Uint32Array(81);
+    inputs.forEach(input => {
+        const val = parseInt(input.value, 10);
+        if (val >= 1 && val <= 9) newGrid[input.dataset.index] = SudokuBitUtils.createSolved(val, true);
     });
 
-    // Brief delay to give user a "thinking" feel
     await new Promise(r => setTimeout(r, 300));
-
-    try {
-        hideAllOcrStates();
-        validateAndApplyOcrGrid(newGrid1D);
-    } finally {
-        // Restore button on failure (modal disappears on success)
-        btn.disabled = false;
-        btn.textContent = oldText;
-    }
-}
-
-document.getElementById('btn-manual-play').addEventListener('click', (e) => {
-    e.stopPropagation();
-    handleManualPlayGrid(e);
+    session.gridResult = newGrid;
+    session.validateAndApply();
+    
+    DOM.btnManualPlay.disabled = false;
+    DOM.btnManualPlay.textContent = originalText;
 });
 
-document.getElementById('btn-re-recognize').addEventListener('click', (e) => {
-    e.stopPropagation();
-    clearOcrCache();
-    startOCRAnalysis();
+DOM.btnReRecognize.addEventListener('click', () => {
+    session.clearCache();
+    session.startWorkflow();
 });
 
-btnOcrOpen.addEventListener('click', () => {
-    setOcrModalState('upload');
-    ocrModal.showModal();
+[DOM.btnPaste, DOM.btnUnifiedPaste].forEach(btn => btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    readFromClipboard();
+}));
+
+// Backdrops
+[DOM.ocrModal, DOM.ocrCorrectionModal].forEach(modal => {
+    modal?.addEventListener('click', (e) => { if (e.target === modal) modal.close(); });
 });
