@@ -1,7 +1,7 @@
 // ============================================================================
 // OCR Module - Image Recognition & Board Import (Refactored)
 // ============================================================================
-import { SudokuBitUtils, SudokuLogicalSolver, SudokuDLX, DifficultyEvaluator } from './solver.js';
+import { SudokuBitUtils, SudokuDLX, DifficultyEvaluator } from './solver.js';
 import { t, applyLanguage, currentLang } from './i18n.js';
 import { GridDetector } from './ocr-engine.js';
 import { TECHNIQUES, TECHNIQUES_ADVANCED } from './solver-techniques.js';
@@ -183,7 +183,7 @@ class OcrSession {
             for (const item of data) {
                 const img = new Image();
                 await new Promise(r => { img.onload = r; img.src = item.image; });
-                
+
                 const canvas = document.createElement('canvas');
                 canvas.width = img.width; canvas.height = img.height;
                 canvas.getContext('2d', { willReadFrequently: true }).drawImage(img, 0, 0);
@@ -265,7 +265,7 @@ class OcrSession {
 
     async tryMatchCache(canvas) {
         if (this.cache.length === 0) return 0;
-        
+
         const currentMat = cv.imread(canvas);
         cv.cvtColor(currentMat, currentMat, cv.COLOR_RGBA2GRAY, 0);
         let foundDigit = 0;
@@ -381,7 +381,7 @@ class OcrSession {
             const cell = document.createElement('div');
             cell.className = 'preview-cell';
 
-            const isUnrecognized = unrecognizedIndices.some(u => 
+            const isUnrecognized = unrecognizedIndices.some(u =>
                 (typeof u === 'number' ? u === idx : u.index === idx)
             );
 
@@ -435,7 +435,7 @@ class OcrSession {
         }
 
         document.dispatchEvent(new CustomEvent('ocr:complete', {
-            detail: { 
+            detail: {
                 puzzle: finalPuzzle,
                 technique: resultEval.technique
             }
@@ -468,7 +468,7 @@ function showCorrectionSubModal(queue, gridResult, onComplete) {
 
         const img = document.createElement('img');
         img.src = item.canvas.toDataURL();
-        
+
         const input = document.createElement('input');
         InputUtils.setupNumericInput(input, () => {
             if (idx < queue.length - 1) inputs[idx + 1].input.focus();
@@ -494,7 +494,7 @@ function renderManualEditableGrid(initialGrid) {
         input.dataset.index = i;
         const val = SudokuBitUtils.getValue(initialGrid[i]);
         input.value = val !== 0 ? val : '';
-        
+
         InputUtils.setupNumericInput(input);
         DOM.manualGrid.appendChild(input);
     }
@@ -504,7 +504,7 @@ function renderManualEditableGrid(initialGrid) {
 
 function handleFile(file) {
     if (!file.type.startsWith('image/')) return session.showInlineError('invalidFileType');
-    
+
     const reader = new FileReader();
     reader.onload = (e) => {
         const img = new Image();
@@ -586,7 +586,7 @@ DOM.btnManualPlay.addEventListener('click', async () => {
     await new Promise(r => setTimeout(r, 300));
     session.gridResult = newGrid;
     session.validateAndApply();
-    
+
     DOM.btnManualPlay.disabled = false;
     DOM.btnManualPlay.textContent = originalText;
 });

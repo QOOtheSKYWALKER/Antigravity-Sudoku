@@ -1,7 +1,7 @@
-import { SudokuBitUtils, SudokuLogicalSolver, DifficultyEvaluator, SudokuUIBridge } from './solver.js';
+import { SudokuBitUtils as Utils, DifficultyEvaluator, SudokuUIBridge } from './solver.js';
 import { t, tTechnique, applyLanguage, currentLang } from './i18n.js';
 import { TECHNIQUES } from './solver-techniques.js';
-const Utils = SudokuBitUtils;
+// const Utils = SudokuBitUtils;
 
 let unifiedBoard = new Uint32Array(81);   // Primary board state
 let initialSnapshot = new Uint32Array(81); // State to restore on Reset
@@ -17,7 +17,6 @@ let undoStack = [];
 let redoStack = [];
 
 // Initial memory allocation
-// SudokuDLX.allocateMemory();
 const evalSandbox = DifficultyEvaluator.createSandbox();
 
 // Render cache
@@ -281,7 +280,7 @@ async function initGame(difficulty, preGeneratedResult = null) {
         unifiedBoard.set(result.puzzle);
         cellStateCache.fill(0xFFFFFFFF);
         setSelectedIdx(0);
-        SudokuBitUtils.clearUnsolvedCandidates(unifiedBoard);
+        Utils.clearUnsolvedCandidates(unifiedBoard);
         Utils.updateErrorFlags(unifiedBoard);
         initialSnapshot.set(unifiedBoard);
         setMemoMode(false);
@@ -616,7 +615,7 @@ function handleRocket() {
         redoStack = [];
         updateUndoRedoButtons();
 
-        SudokuBitUtils.updateErrorFlags(unifiedBoard);
+        Utils.updateErrorFlags(unifiedBoard);
         updateHighlight();
         renderBoard();
         if (checkWin()) messageEl.textContent = t('clear');
