@@ -1,14 +1,14 @@
 /**
  * Sudoku Generation Worker (generator.js)
- * Integrates heavy generation algorithms and worker entry point.
+ * Procedural Pipeline Refactoring
  */
 
-import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, DifficultyEvaluator } from './solver.js';
+import { SudokuBitUtils as Utils, SudokuDLX, SudokuLogicalSolver, DifficultyEvaluator } from './solver.js';
 import { TECHNIQUES, TECHNIQUES_ADVANCED } from './solver-techniques.js';
 
-// Initialize memory for the worker context
+// Global Engine Setup
 SudokuDLX.init();
-SudokuLogicalSolver.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
+DifficultyEvaluator.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
 const evalSandbox = DifficultyEvaluator.createSandbox();
 
 /**
@@ -16,15 +16,11 @@ const evalSandbox = DifficultyEvaluator.createSandbox();
  */
 self.onmessage = function (e) {
     const { type, taskId, rank, patternType, grid, targetRank } = e.data;
-
     try {
         if (type === 'GENERATE') {
             const result = SudokuGenerator.generateSinglePattern(rank, patternType);
-            if (result) {
-                self.postMessage({ type: 'GENERATE_SUCCESS', taskId, result });
-            } else {
-                self.postMessage({ type: 'ERROR', taskId, message: 'Generation failed' });
-            }
+            if (result) self.postMessage({ type: 'GENERATE_SUCCESS', taskId, result });
+            else self.postMessage({ type: 'ERROR', taskId, message: 'Generation failed' });
         } else if (type === 'ENGINE') {
             const result = DifficultyEvaluator.evaluate(grid, targetRank, evalSandbox);
             self.postMessage({ type: 'ENGINE_SUCCESS', taskId, result });
@@ -35,7 +31,82 @@ self.onmessage = function (e) {
 };
 
 /**
- * Sudoku Generation Logic (Moved from solver.js)
+ * Generation Strategies for Hints Pruning
+ */
+const PATTERN_STRATEGIES = {
+    SYMMETRY: () => {
+        const pairs = []; const used = new Set();
+        for (let i = 0; i < 81; i++) {
+            if (used.has(i)) continue;
+            let partner = 80 - i;
+            pairs.push(i === partner ? [i] : [i, partner]);
+            used.add(i); used.add(partner);
+        }
+        return SudokuLogicalSolver.shuffleArray(pairs).flat();
+    },
+    MIRROR: () => {
+        const pairs = []; const used = new Set();
+        for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+                let idx = r * 9 + c; if (used.has(idx)) continue;
+                let partner = r * 9 + (8 - c);
+                pairs.push(idx === partner ? [idx] : [idx, partner]);
+                used.add(idx); used.add(partner);
+            }
+        }
+        return SudokuLogicalSolver.shuffleArray(pairs).flat();
+    },
+    CHECKER: () => {
+        const even = [], odd = [];
+        for (let i = 0; i < 81; i++) {
+            let r = Math.floor(i / 9), c = i % 9;
+            if ((r + c) % 2 === 0) even.push(i); else odd.push(i);
+        }
+        const sEven = SudokuLogicalSolver.shuffleArray(even);
+        const sOdd = SudokuLogicalSolver.shuffleArray(odd);
+        return Math.random() > 0.5 ? [...sEven, ...sOdd] : [...sOdd, ...sEven];
+    },
+    RANDOM: () => {
+        const indices = Array.from({ length: 81 }, (_, i) => i);
+        return SudokuLogicalSolver.shuffleArray(indices);
+    }
+};
+
+/**
+ * State Container for a Generation Trial
+ */
+class GenerationContext {
+    constructor(solutionBits) {
+        this.solution = new Uint8Array(81);
+        for (let i = 0; i < 81; i++) this.solution[i] = Utils.getValue(solutionBits[i]);
+
+        this.grid = new Uint32Array(81);
+        this.activeClues = [];
+        this.currentHash = 0n;
+
+        for (let i = 0; i < 81; i++) {
+            const raw = solutionBits[i];
+            const val = this.solution[i];
+            const bits = (raw & ~Utils.BIT_SOLUTION_MASK) | (val << Utils.BIT_SOLUTION_SHIFT);
+            this.grid[i] = bits;
+            this.activeClues.push({ idx: i, bits });
+            this.currentHash ^= SudokuDLX.ZOBRIST_TABLE[i * 10 + val];
+        }
+    }
+
+    fillScratch(clues = this.activeClues) {
+        SudokuLogicalSolver.SCRATCH_BIT_GRID.fill(Utils.MASK_CANDIDATES);
+        for (const c of clues) {
+            const sol = Utils.getSolution(c.bits);
+            SudokuLogicalSolver.SCRATCH_BIT_GRID[c.idx] =
+                (c.bits & ~Utils.MASK_CANDIDATES) | (1 << (sol - 1)) | Utils.BIT_CONFIRMED;
+        }
+        return SudokuLogicalSolver.SCRATCH_BIT_GRID;
+    }
+}
+
+/**
+ * Sudoku Generator - Pipeline Orchestrator
  */
 class SudokuGenerator {
     static generateSinglePattern(targetRank, patternType = 0) {
@@ -44,162 +115,27 @@ class SudokuGenerator {
         let bestResult = null;
 
         for (let trial = 0; trial < 50; trial++) {
-            const solutionBits = new Uint32Array(81);
+            // Pipeline Step 1: Create Full Solution
+            const solutionBits = this.createFullSolution();
+            if (!solutionBits) continue;
 
-            let seeds = 0;
-            while (seeds < 5) {
-                const idx = Math.floor(Math.random() * 81);
-                const val = Math.floor(Math.random() * 9) + 1;
-                // 置いても矛盾しない場合のみ採用
-                if (SudokuBitUtils.isValid(solutionBits, idx, val)) {
-                    solutionBits[idx] = SudokuBitUtils.createSolved(val, true);
-                    seeds++;
-                }
-            }
-            SudokuDLX.solveAndFill(solutionBits);
-            const solution = new Uint8Array(81);
-            for (let i = 0; i < 81; i++) solution[i] = SudokuBitUtils.getValue(solutionBits[i]);
+            const context = new GenerationContext(solutionBits);
 
-            let activeClues = [];
-            let initialHash = 0n;
-            for (let i = 0; i < 81; i++) {
-                const raw = solutionBits[i];
-                const val = SudokuBitUtils.getValue(raw);
-                const rawWithSol = (raw & ~SudokuBitUtils.BIT_SOLUTION_MASK) | (val << SudokuBitUtils.BIT_SOLUTION_SHIFT);
-                activeClues.push({ idx: i, bits: rawWithSol });
-                initialHash ^= SudokuDLX.ZOBRIST_TABLE[i * 10 + val];
-            }
+            // Pipeline Step 2: Determine Pruning Sequence
+            const sequence = this.getPruningSequence(patternType, trial);
 
-            const fillScratchBitGrid = (clues) => {
-                SudokuLogicalSolver.SCRATCH_BIT_GRID.fill(SudokuBitUtils.MASK_CANDIDATES);
-                for (let i = 0, len = clues.length; i < len; i++) {
-                    const c = clues[i];
-                    const bits = c.bits;
-                    const sol = (bits & SudokuBitUtils.BIT_SOLUTION_MASK) >>> SudokuBitUtils.BIT_SOLUTION_SHIFT;
-                    SudokuLogicalSolver.SCRATCH_BIT_GRID[c.idx] =
-                        (bits & ~SudokuBitUtils.MASK_CANDIDATES) |
-                        (1 << (sol - 1)) |
-                        SudokuBitUtils.BIT_CONFIRMED;
-                }
-                return SudokuLogicalSolver.SCRATCH_BIT_GRID;
-            };
+            // Pipeline Step 3: Phase 1 - Coarse Pruning & BIT_INF identification
+            this.performPhase1Pruning(context, sequence);
 
-            SudokuDLX.clearMetaBits();
-            let currentGrid = new Uint32Array(81);
-            for (let c of activeClues) currentGrid[c.idx] = c.bits;
-            const phase1Removed = new Uint8Array(81);
+            // Pipeline Step 4: Phase 2 - Fine-grained Zobrist Reduction
+            const explorer = new ReductionExplorer(context, targetRank);
+            const reducedClues = explorer.performSearch(2000);
 
-            let effectivePattern = (patternType === -1) ? (trial % 4) : patternType;
-            let phase1Indices = [];
-            switch (effectivePattern) {
-                case 0: // Symmetry
-                    const pairs0 = [];
-                    const used0 = new Set();
-                    for (let i = 0; i < 81; i++) {
-                        if (used0.has(i)) continue;
-                        let partner = 80 - i;
-                        pairs0.push(i === partner ? [i] : [i, partner]);
-                        used0.add(i); used0.add(partner);
-                    }
-                    phase1Indices = SudokuLogicalSolver.shuffleArray(pairs0).flat();
-                    break;
-                case 1: // Mirror
-                    const pairs1 = [];
-                    const used1 = new Set();
-                    for (let r = 0; r < 9; r++) {
-                        for (let c = 0; c < 9; c++) {
-                            let idx = r * 9 + c;
-                            if (used1.has(idx)) continue;
-                            let partner = r * 9 + (8 - c);
-                            pairs1.push(idx === partner ? [idx] : [idx, partner]);
-                            used1.add(idx); used1.add(partner);
-                        }
-                    }
-                    phase1Indices = SudokuLogicalSolver.shuffleArray(pairs1).flat();
-                    break;
-                case 2: // Checker
-                    const even = [], odd = [];
-                    for (let i = 0; i < 81; i++) {
-                        let r = Math.floor(i / 9), c = i % 9;
-                        if ((r + c) % 2 === 0) even.push(i); else odd.push(i);
-                    }
-                    const sEven = SudokuLogicalSolver.shuffleArray(even);
-                    const sOdd = SudokuLogicalSolver.shuffleArray(odd);
-                    phase1Indices = Math.random() > 0.5 ? [...sEven, ...sOdd] : [...sOdd, ...sEven];
-                    break;
-                case 3: // Random
-                default:
-                    phase1Indices = Array.from({ length: 81 }, (_, i) => i);
-                    phase1Indices = SudokuLogicalSolver.shuffleArray(phase1Indices);
-            }
-
-            for (const origIdx of phase1Indices) {
-                const clue = activeClues[origIdx] || { idx: origIdx, bits: currentGrid[origIdx] };
-                if (currentGrid[clue.idx] & SudokuBitUtils.BIT_INF) continue;
-                const val = (clue.bits & SudokuBitUtils.BIT_SOLUTION_MASK) >>> SudokuBitUtils.BIT_SOLUTION_SHIFT;
-
-                const savedClue = currentGrid[clue.idx];
-                currentGrid[clue.idx] &= ~(SudokuBitUtils.BIT_CONFIRMED | SudokuBitUtils.BIT_GIVEN);
-
-                let deltaInf = 0;
-                let newlyInfIndices = [];
-                for (let j = 0; j < 81; j++) {
-                    const cj = currentGrid[j];
-                    if (!SudokuBitUtils.isSolved(cj) || (cj & SudokuBitUtils.BIT_INF)) continue;
-                    const savedJ = currentGrid[j];
-                    currentGrid[j] &= ~(SudokuBitUtils.BIT_CONFIRMED | SudokuBitUtils.BIT_GIVEN);
-                    if (SudokuDLX.countSolutions(currentGrid) > 1) {
-                        deltaInf++;
-                        newlyInfIndices.push(j);
-                    }
-                    currentGrid[j] = savedJ;
-                    if (deltaInf > 1) break;
-                }
-
-                if (deltaInf <= 1) {
-                    phase1Removed[clue.idx] = 1;
-                    initialHash ^= SudokuDLX.ZOBRIST_TABLE[clue.idx * 10 + val];
-                    for (const infIdx of newlyInfIndices) currentGrid[infIdx] |= SudokuBitUtils.BIT_INF;
-                } else {
-                    currentGrid[clue.idx] = savedClue;
-                }
-            }
-            activeClues = activeClues.filter(c => !phase1Removed[c.idx]);
-
-            activeClues = activeClues.map(c => {
-                const bits = currentGrid[c.idx];
-                const sol = SudokuBitUtils.getSolution(bits);
-                let clean = (1 << (sol - 1)) | SudokuBitUtils.BIT_CONFIRMED | SudokuBitUtils.BIT_GIVEN;
-                clean |= (sol << SudokuBitUtils.BIT_SOLUTION_SHIFT);
-                if (bits & SudokuBitUtils.BIT_INF) clean |= SudokuBitUtils.BIT_INF;
-                return { idx: c.idx, bits: clean };
-            });
-
-            const maxIterLimit = 2000;
-            let resultClues = this._runReduction(activeClues, initialHash, targetRank, maxIterLimit, fillScratchBitGrid);
-
-            const resultPuzzle = new Uint32Array(81);
-            resultPuzzle.fill(SudokuBitUtils.MASK_CANDIDATES);
-            resultClues.forEach(c => {
-                const b = c.bits | SudokuBitUtils.BIT_CONFIRMED | SudokuBitUtils.BIT_GIVEN;
-                resultPuzzle[c.idx] = (c.bits & SudokuBitUtils.BIT_INF) ? (b | SudokuBitUtils.BIT_INF) : b;
-            });
-
-            for (let i = 0; i < 81; i++) resultPuzzle[i] = SudokuBitUtils.setSolution(resultPuzzle[i], solution[i]);
-            SudokuBitUtils.updateAllCandidates(resultPuzzle);
-            const finalEval = DifficultyEvaluator.evaluate(resultPuzzle, 4);
-
-            const result = {
-                puzzle: resultPuzzle,
-                hints: resultClues.length,
-                difficulty: finalEval.difficulty,
-                rank: finalEval.rank,
-                technique: finalEval.technique,
-                techniqueCounts: finalEval.techniqueCounts,
-                patternName: ['Symmetry', 'Mirror', 'Checker', 'Random'][effectivePattern] || 'Random'
-            };
+            // Pipeline Step 5: Finalize and Evaluate
+            const result = this.finalizePuzzle(reducedClues, context, sequence.type);
 
             if (result.rank === targetRank) return result;
+
             if (!bestResult || Math.abs(result.rank - targetRank) < Math.abs(bestResult.rank - targetRank)) {
                 bestResult = result;
             } else if (result.rank === bestResult.rank && result.hints < bestResult.hints) {
@@ -209,55 +145,163 @@ class SudokuGenerator {
         return bestResult;
     }
 
-    static _runReduction(initialClues, initialHash, targetRank, iterLimit, fillScratchBitGrid) {
-        let bestClues = initialClues;
-        const currentRank = (clues) => DifficultyEvaluator.evaluate(fillScratchBitGrid(clues), targetRank).rank ?? 1;
+    static createFullSolution() {
+        const solutionBits = new Uint32Array(81);
+        let seeds = 0;
+        while (seeds < 5) {
+            const idx = Math.floor(Math.random() * 81);
+            const val = Math.floor(Math.random() * 9) + 1;
+            if (Utils.isValid(solutionBits, idx, val)) {
+                solutionBits[idx] = Utils.createSolved(val, true);
+                seeds++;
+            }
+        }
+        return SudokuDLX.solveAndFill(solutionBits) > 0 ? solutionBits : null;
+    }
 
-        if (currentRank(initialClues) === targetRank) bestClues = initialClues;
+    static getPruningSequence(patternType, trial) {
+        const type = (patternType === -1) ? (trial % 4) : patternType;
+        const strategy = [
+            PATTERN_STRATEGIES.SYMMETRY,
+            PATTERN_STRATEGIES.MIRROR,
+            PATTERN_STRATEGIES.CHECKER,
+            PATTERN_STRATEGIES.RANDOM
+        ][type] || PATTERN_STRATEGIES.RANDOM;
+        return { indices: strategy(), type };
+    }
 
-        const visited = new Set([initialHash]);
-        const queue = [{ clues: [...initialClues], hash: initialHash, depth: 0 }];
-        let loopCount = 0;
+    static performPhase1Pruning(context, sequence) {
+        SudokuDLX.clearMetaBits();
+        const removedFlags = new Uint8Array(81);
 
-        while (queue.length > 0 && loopCount < iterLimit) {
+        for (const idx of sequence.indices) {
+            const clue = context.activeClues.find(c => c.idx === idx);
+            if (!clue || (context.grid[idx] & Utils.BIT_INF)) continue;
+
+            const val = Utils.getSolution(clue.bits);
+            const impact = this.checkImpactOfRemoval(context.grid, idx);
+
+            if (impact.canRemove) {
+                removedFlags[idx] = 1;
+                context.grid[idx] &= ~(Utils.BIT_CONFIRMED | Utils.BIT_GIVEN);
+                context.currentHash ^= SudokuDLX.ZOBRIST_TABLE[idx * 10 + val];
+                for (const infIdx of impact.newlyEssential) context.grid[infIdx] |= Utils.BIT_INF;
+            }
+        }
+        context.activeClues = context.activeClues.filter(c => !removedFlags[c.idx]);
+    }
+
+    static checkImpactOfRemoval(grid, targetIdx) {
+        const savedTarget = grid[targetIdx];
+        grid[targetIdx] &= ~(Utils.BIT_CONFIRMED | Utils.BIT_GIVEN);
+        let essentialHitCount = 0;
+        let newlyEssential = [];
+
+        for (let i = 0; i < 81; i++) {
+            const cell = grid[i];
+            if (!Utils.isSolved(cell) || (cell & Utils.BIT_INF)) continue;
+            const savedCell = grid[i];
+            grid[i] &= ~(Utils.BIT_CONFIRMED | Utils.BIT_GIVEN);
+            if (SudokuDLX.countSolutions(grid) > 1) {
+                essentialHitCount++;
+                newlyEssential.push(i);
+            }
+            grid[i] = savedCell;
+            if (essentialHitCount > 1) break;
+        }
+
+        const canRemove = essentialHitCount <= 1;
+        if (!canRemove) grid[targetIdx] = savedTarget;
+        return { canRemove, newlyEssential };
+    }
+
+    static finalizePuzzle(reducedClues, context, patternType) {
+        const puzzle = new Uint32Array(81);
+        puzzle.fill(Utils.MASK_CANDIDATES);
+        reducedClues.forEach(c => {
+            const b = c.bits | Utils.BIT_CONFIRMED | Utils.BIT_GIVEN;
+            puzzle[c.idx] = (c.bits & Utils.BIT_INF) ? (b | Utils.BIT_INF) : b;
+        });
+
+        for (let i = 0; i < 81; i++) puzzle[i] = Utils.setSolution(puzzle[i], context.solution[i]);
+        Utils.updateAllCandidates(puzzle);
+
+        const finalEval = DifficultyEvaluator.evaluate(puzzle, 4);
+        const patternNames = ['Symmetry', 'Mirror', 'Checker', 'Random'];
+
+        return {
+            puzzle,
+            hints: reducedClues.length,
+            difficulty: finalEval.difficulty,
+            rank: finalEval.rank,
+            technique: finalEval.technique,
+            techniqueCounts: finalEval.techniqueCounts,
+            patternName: patternNames[patternType] || 'Random'
+        };
+    }
+}
+
+/**
+ * Search Explorer for Phase 2 Reduction
+ */
+class ReductionExplorer {
+    constructor(context, targetRank) {
+        this.context = context;
+        this.targetRank = targetRank;
+    }
+
+    performSearch(iterLimit) {
+        let currentClues = this.context.activeClues.map(c => {
+            const sol = Utils.getSolution(c.bits);
+            let bits = (1 << (sol - 1)) | Utils.BIT_CONFIRMED | Utils.BIT_GIVEN;
+            bits |= (sol << Utils.BIT_SOLUTION_SHIFT);
+            if (c.bits & Utils.BIT_INF) bits |= Utils.BIT_INF;
+            return { idx: c.idx, bits };
+        });
+
+        let bestClues = currentClues;
+        const getRank = (clues) => DifficultyEvaluator.evaluate(this.context.fillScratch(clues), this.targetRank).rank ?? 1;
+
+        if (getRank(currentClues) === this.targetRank) bestClues = currentClues;
+
+        const visited = new Set([this.context.currentHash]);
+        const queue = [{ clues: [...currentClues], hash: this.context.currentHash }];
+        let loop = 0;
+
+        while (queue.length > 0 && loop < iterLimit) {
             const state = queue.pop();
-            const indices = state.clues.map((_, i) => i);
-            SudokuLogicalSolver.shuffleArray(indices);
+            const indices = SudokuLogicalSolver.shuffleArray(state.clues.map((_, i) => i));
 
             for (let i of indices) {
-                if (loopCount >= iterLimit) break;
-                loopCount++;
-
+                if (++loop >= iterLimit) break;
                 const clue = state.clues[i];
-                if (clue.bits & SudokuBitUtils.BIT_INF) continue;
+                if (clue.bits & Utils.BIT_INF) continue;
 
-                const gb = fillScratchBitGrid(state.clues);
-                const originalVal = gb[clue.idx];
-                gb[clue.idx] = SudokuBitUtils.MASK_CANDIDATES;
-                const isUnique = SudokuDLX.countSolutions(gb) === 1;
-                gb[clue.idx] = originalVal;
+                const testGrid = this.context.fillScratch(state.clues);
+                const originalVal = testGrid[clue.idx];
+                testGrid[clue.idx] = Utils.MASK_CANDIDATES;
+                const isUnique = SudokuDLX.countSolutions(testGrid) === 1;
+                testGrid[clue.idx] = originalVal;
 
                 if (!isUnique) {
-                    clue.bits |= SudokuBitUtils.BIT_INF;
+                    clue.bits |= Utils.BIT_INF;
                     continue;
                 }
 
-                const val = (clue.bits & SudokuBitUtils.BIT_SOLUTION_MASK) >>> SudokuBitUtils.BIT_SOLUTION_SHIFT;
-                const nextHash = state.hash ^ SudokuDLX.ZOBRIST_TABLE[clue.idx * 10 + val];
+                const sol = Utils.getSolution(clue.bits);
+                const nextHash = state.hash ^ SudokuDLX.ZOBRIST_TABLE[clue.idx * 10 + sol];
                 if (visited.has(nextHash)) continue;
                 visited.add(nextHash);
 
                 const nextClues = state.clues.filter((_, idx) => idx !== i);
-                const rank = currentRank(nextClues);
+                const rank = getRank(nextClues);
 
-                if (rank === targetRank) {
-                    if (nextClues.length < bestClues.length || currentRank(bestClues) < targetRank) {
+                if (rank === this.targetRank) {
+                    if (nextClues.length < bestClues.length || getRank(bestClues) < this.targetRank) {
                         bestClues = [...nextClues];
                     }
                 }
-                if (rank <= targetRank) {
-                    queue.push({ clues: nextClues, hash: nextHash, depth: state.depth + 1 });
-                }
+                if (rank <= this.targetRank) queue.push({ clues: nextClues, hash: nextHash });
             }
         }
         return bestClues;

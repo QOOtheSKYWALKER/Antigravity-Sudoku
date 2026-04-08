@@ -1,6 +1,6 @@
-import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, nameToRank, DifficultyEvaluator } from './solver.js';
+import { SudokuBitUtils, SudokuDLX, SudokuLogicalSolver, DifficultyEvaluator } from './solver.js';
 import { TECHNIQUES, TECHNIQUES_ADVANCED } from './solver-techniques.js';
-SudokuLogicalSolver.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
+DifficultyEvaluator.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
 const rank1Names = new Set(TECHNIQUES.filter(t => t.rank === 1).map(t => t.name));
 const dashBoard = document.getElementById('dashboard-board');
 const miniBoard = document.getElementById('mini-board');
@@ -110,7 +110,7 @@ function updateMiniBoard(grid, evalResult = null) {
 function getHeatmapColor(res) {
     if (res.isInf) return { bg: '#2b0000', text: '#f9d423', isDark: true };
 
-    const rank = nameToRank(res.difficulty) - 1;
+    const rank = DifficultyEvaluator.nameToRank(res.difficulty) - 1;
     // Scale rank: 0 (basic) to 3 (hard/extreme)
     let t = rank / 3;
     if (t > 1) t = 1;

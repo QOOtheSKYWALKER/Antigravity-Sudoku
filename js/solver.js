@@ -638,6 +638,9 @@ let TECH_BY_RANK = null;
 let TECHNIQUE_LEVELS = null;
 
 export const DifficultyEvaluator = {
+    DIFFICULTY_MAP: { 'basic': 1, 'easy': 2, 'medium': 3, 'hard': 4 },
+    RANK_MAP: { 1: 'basic', 2: 'easy', 3: 'medium', 4: 'hard' },
+
     evaluate(grid, targetRank = 4, sandbox = null) {
         SudokuLogicalSolver.init();
         const solver = sandbox || DifficultyEvaluator.createSandbox();
@@ -679,9 +682,26 @@ export const DifficultyEvaluator = {
         return { rank: maxRank, technique: bestItem ? bestItem.technique : 'N/A' };
     },
 
+    nameToRank(name) {
+        return this.DIFFICULTY_MAP[name?.toLowerCase()] || 0;
+    },
+
     rankToName(rank) {
-        const map = { 1: 'basic', 2: 'easy', 3: 'medium', 4: 'hard' };
-        return map[rank] || 'basic';
+        return this.RANK_MAP[rank] || 'basic';
+    },
+
+    connectDictionary(techniques) {
+        TECH_BY_RANK = {
+            1: techniques.filter(t => t.rank === 1),
+            2: techniques.filter(t => t.rank === 2),
+            3: techniques.filter(t => t.rank === 3),
+            4: techniques.filter(t => t.rank === 4)
+        };
+        TECHNIQUE_LEVELS = {};
+        for (const t of techniques) {
+            TECHNIQUE_LEVELS[t.name] = t.rank;
+            SudokuLogicalSolver.prototype[t.id] = function () { return t.applyLogical(this); };
+        }
     }
 };
 
@@ -786,27 +806,3 @@ export const SudokuUIBridge = {
         return null;
     }
 };
-
-// ============================================================================
-// [INITIALIZATION]
-// Dictionary wiring and global bootstrapper.
-// ============================================================================
-
-SudokuLogicalSolver.connectDictionary = function (techniques) {
-    TECH_BY_RANK = {
-        1: techniques.filter(t => t.rank === 1),
-        2: techniques.filter(t => t.rank === 2),
-        3: techniques.filter(t => t.rank === 3),
-        4: techniques.filter(t => t.rank === 4)
-    };
-    TECHNIQUE_LEVELS = {};
-    for (const t of techniques) {
-        TECHNIQUE_LEVELS[t.name] = t.rank;
-        SudokuLogicalSolver.prototype[t.id] = function () { return t.applyLogical(this); };
-    }
-};
-
-export function nameToRank(name) {
-    const map = { 'basic': 1, 'easy': 2, 'medium': 3, 'hard': 4 };
-    return map[name] ?? 0;
-}

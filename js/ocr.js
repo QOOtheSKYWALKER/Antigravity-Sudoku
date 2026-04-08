@@ -93,7 +93,7 @@ class OcrSession {
         this.ocrLibrariesLoaded = false;
 
         SudokuDLX.init();
-        SudokuLogicalSolver.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
+        DifficultyEvaluator.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
     }
 
     // --- State & UI Helpers ---

@@ -1,4 +1,4 @@
-import { SudokuBitUtils, SudokuLogicalSolver, nameToRank, DifficultyEvaluator, SudokuUIBridge } from './solver.js';
+import { SudokuBitUtils, SudokuLogicalSolver, DifficultyEvaluator, SudokuUIBridge } from './solver.js';
 import { t, tTechnique, applyLanguage, currentLang } from './i18n.js';
 import { TECHNIQUES } from './solver-techniques.js';
 const Utils = SudokuBitUtils;
@@ -71,7 +71,7 @@ class SudokuOrchestrator {
         this.results = [];
         this.allResults = [];
         this.activeDifficulty = difficulty;
-        this.activeRank = nameToRank(difficulty);
+        this.activeRank = DifficultyEvaluator.nameToRank(difficulty);
         this.activeTaskId = Date.now();
         this.finished = false;
 
@@ -667,7 +667,7 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
     if (themeSelect) themeSelect.value = savedTheme;
     applyTheme(savedTheme);
     applyLanguage(currentLang);
-    SudokuLogicalSolver.connectDictionary(TECHNIQUES);
+    DifficultyEvaluator.connectDictionary(TECHNIQUES);
     themeSelect?.addEventListener('change', (e) => applyTheme(e.target.value));
     langSelect?.addEventListener('change', (e) => applyLanguage(e.target.value));
     buildBoard();
