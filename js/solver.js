@@ -751,12 +751,11 @@ export const SudokuUIBridge = {
         }
 
         // 1. Try Rank 1 (Naked/Hidden Singles)
-        const rank1Techs = TECH_BY_RANK?.[1] ?? [];
         let anyProgress = false;
         let loop = true;
         while (loop) {
             loop = false;
-            for (const tech of rank1Techs) {
+            for (const tech of TECH_BY_RANK?.[1] ?? []) {
                 if (tech.applyLogical(solver, true)) {
                     anyProgress = true;
                     loop = true;
@@ -794,7 +793,16 @@ export const SudokuUIBridge = {
         SudokuBitUtils.updateAllCandidates(tempBoard);
 
         const pruningSolver = new SudokuLogicalSolver(tempBoard, false);
-        for (const tech of (TECH_BY_RANK?.[2] ?? [])) tech.applyLogical(pruningSolver);
+        let pruned = true;
+        while (pruned) {
+            pruned = false;
+            for (const tech of (TECH_BY_RANK?.[2] ?? [])) {
+                if (tech.applyLogical(pruningSolver)) {
+                    pruned = true;
+                    break;
+                }
+            }
+        }
 
         let finalChanged = false;
         for (let i = 0; i < 81; i++) {
