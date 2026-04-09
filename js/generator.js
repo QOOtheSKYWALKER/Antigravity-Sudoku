@@ -3,7 +3,7 @@
  * Procedural Pipeline Refactoring
  */
 
-import { SudokuBitUtils as Utils, SudokuDLX, SudokuLogicalSolver, DifficultyEvaluator } from './solver.js';
+import { SudokuBitUtils as Utils, SudokuBitBoard, SudokuDLX, DifficultyEvaluator } from './solver.js';
 import { TECHNIQUES, TECHNIQUES_ADVANCED } from './solver-techniques.js';
 
 // Global Engine Setup
@@ -42,7 +42,7 @@ const PATTERN_STRATEGIES = {
             pairs.push(i === partner ? [i] : [i, partner]);
             used.add(i); used.add(partner);
         }
-        return SudokuLogicalSolver.shuffleArray(pairs).flat();
+        return Utils.shuffleArray(pairs).flat();
     },
     MIRROR: () => {
         const pairs = []; const used = new Set();
@@ -54,7 +54,7 @@ const PATTERN_STRATEGIES = {
                 used.add(idx); used.add(partner);
             }
         }
-        return SudokuLogicalSolver.shuffleArray(pairs).flat();
+        return Utils.shuffleArray(pairs).flat();
     },
     CHECKER: () => {
         const even = [], odd = [];
@@ -62,13 +62,13 @@ const PATTERN_STRATEGIES = {
             let r = Math.floor(i / 9), c = i % 9;
             if ((r + c) % 2 === 0) even.push(i); else odd.push(i);
         }
-        const sEven = SudokuLogicalSolver.shuffleArray(even);
-        const sOdd = SudokuLogicalSolver.shuffleArray(odd);
+        const sEven = Utils.shuffleArray(even);
+        const sOdd = Utils.shuffleArray(odd);
         return Math.random() > 0.5 ? [...sEven, ...sOdd] : [...sOdd, ...sEven];
     },
     RANDOM: () => {
         const indices = Array.from({ length: 81 }, (_, i) => i);
-        return SudokuLogicalSolver.shuffleArray(indices);
+        return Utils.shuffleArray(indices);
     }
 };
 
@@ -83,6 +83,7 @@ class GenerationContext {
         this.grid = new Uint32Array(81);
         this.activeClues = [];
         this.currentHash = 0n;
+        this.scratchGrid = new Uint32Array(81);
 
         for (let i = 0; i < 81; i++) {
             const raw = solutionBits[i];
@@ -95,13 +96,13 @@ class GenerationContext {
     }
 
     fillScratch(clues = this.activeClues) {
-        SudokuLogicalSolver.SCRATCH_BIT_GRID.fill(Utils.MASK_CANDIDATES);
+        this.scratchGrid.fill(Utils.MASK_CANDIDATES);
         for (const c of clues) {
             const sol = Utils.getSolution(c.bits);
-            SudokuLogicalSolver.SCRATCH_BIT_GRID[c.idx] =
+            this.scratchGrid[c.idx] =
                 (c.bits & ~Utils.MASK_CANDIDATES) | (1 << (sol - 1)) | Utils.BIT_CONFIRMED;
         }
-        return SudokuLogicalSolver.SCRATCH_BIT_GRID;
+        return this.scratchGrid;
     }
 }
 
@@ -110,7 +111,7 @@ class GenerationContext {
  */
 class SudokuGenerator {
     static generateSinglePattern(targetRank, patternType = 0) {
-        SudokuLogicalSolver.init();
+        SudokuBitBoard.init();
         SudokuDLX.init();
         let bestResult = null;
 
@@ -270,7 +271,7 @@ class ReductionExplorer {
 
         while (queue.length > 0 && loop < iterLimit) {
             const state = queue.pop();
-            const indices = SudokuLogicalSolver.shuffleArray(state.clues.map((_, i) => i));
+            const indices = Utils.shuffleArray(state.clues.map((_, i) => i));
 
             for (let i of indices) {
                 if (++loop >= iterLimit) break;

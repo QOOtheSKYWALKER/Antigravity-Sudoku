@@ -1,4 +1,4 @@
-import { SudokuLogicalSolver, SudokuBitUtils } from './solver.js';
+import { SudokuLogicalSolver } from './solver.js';
 
 /**
  * Sudoku Solver Techniques Definition
@@ -33,9 +33,9 @@ export const TECHNIQUES = [
             for (let i = 0; i < 81; i++) {
                 if (bb.has(0, i)) continue;
                 const mask = bb.getCellMask(i);
-                if (SudokuBitUtils.popcount(mask) === 1) {
-                    const digit = SudokuBitUtils.bitToDigit(mask);
-                    if (SudokuBitUtils.isValid(bb, i, digit)) {
+                if (SudokuLogicalSolver.popcount(mask) === 1) {
+                    const digit = SudokuLogicalSolver.bitToDigit(mask);
+                    if (SudokuLogicalSolver.isValidBB(bb, i, digit)) {
                         solver.setCellValue(i, digit, 'Naked Single', silent);
                         changed = true;
                     }
@@ -64,7 +64,7 @@ export const TECHNIQUES = [
                     if (bb.houseCount(d, h0, h1, h2) !== 1) continue;
                     const idx = bb.houseFirstCell(d, h0, h1, h2);
                     if (idx < 0 || bb.has(0, idx)) continue;
-                    if (SudokuBitUtils.isValid(bb, idx, d)) {
+                    if (SudokuLogicalSolver.isValidBB(bb, idx, d)) {
                         solver.setCellValue(idx, d, 'Hidden Single', silent);
                         changed = true;
                     }
@@ -105,9 +105,9 @@ export const TECHNIQUES = [
                     if (count < 2 || count > 3) continue;
 
                     // Pointing Row
-                    if (SudokuBitUtils.popcount(rowMask) === 1) {
-                        const r = SudokuBitUtils.bitToDigit(rowMask) - 1;
-                        SudokuBitUtils.forEachBit(bb.rowMask(d, r), (c) => {
+                    if (SudokuLogicalSolver.popcount(rowMask) === 1) {
+                        const r = SudokuLogicalSolver.bitToDigit(rowMask) - 1;
+                        SudokuLogicalSolver.forEachBit(bb.rowMask(d, r), (c) => {
                             if (((r / 3 | 0) * 3 + (c / 3 | 0)) !== box) {
                                 const idx = r * 9 + c;
                                 solver.clearCandidate(idx, d);
@@ -117,9 +117,9 @@ export const TECHNIQUES = [
                         });
                     }
                     // Pointing Col
-                    if (SudokuBitUtils.popcount(colMask) === 1) {
-                        const c = SudokuBitUtils.bitToDigit(colMask) - 1;
-                        SudokuBitUtils.forEachBit(bb.colMask(d, c), (r) => {
+                    if (SudokuLogicalSolver.popcount(colMask) === 1) {
+                        const c = SudokuLogicalSolver.bitToDigit(colMask) - 1;
+                        SudokuLogicalSolver.forEachBit(bb.colMask(d, c), (r) => {
                             if (((r / 3 | 0) * 3 + (c / 3 | 0)) !== box) {
                                 const idx = r * 9 + c;
                                 solver.clearCandidate(idx, d);
@@ -152,12 +152,12 @@ export const TECHNIQUES = [
                 for (const dim of SudokuLogicalSolver.DIMENSIONS) {
                     for (let i = 0; i < 9; i++) {
                         const mask = dim.name === 'row' ? bb.rowMask(d, i) : bb.colMask(d, i);
-                        if (!mask || SudokuBitUtils.popcount(mask) < 2 || SudokuBitUtils.popcount(mask) > 3) continue;
+                        if (!mask || SudokuLogicalSolver.popcount(mask) < 2 || SudokuLogicalSolver.popcount(mask) > 3) continue;
 
                         let boxIdx = -1;
                         let allInSameBox = true;
-                        
-                        SudokuBitUtils.forEachBit(mask, (pos) => {
+
+                        SudokuLogicalSolver.forEachBit(mask, (pos) => {
                             const idx = dim.toIdx(i, pos);
                             const b = ((idx / 9 | 0) / 3 | 0) * 3 + (idx % 9 / 3 | 0);
                             if (boxIdx === -1) boxIdx = b;
@@ -200,12 +200,12 @@ export const TECHNIQUES_ADVANCED = [
                 for (let i = 0; i < 9; i++) {
                     const idx1 = HOUSES[houseBase + i];
                     const c1 = bb.getCellMask(idx1);
-                    if (bb.has(0, idx1) || SudokuBitUtils.popcount(c1) !== 2) continue;
+                    if (bb.has(0, idx1) || SudokuLogicalSolver.popcount(c1) !== 2) continue;
 
                     for (let j = i + 1; j < 9; j++) {
                         const idx2 = HOUSES[houseBase + j];
 
-                        if (!bb.has(0, idx2) && (bb.getCellMask(idx2) & SudokuBitUtils.MASK_CANDIDATES) === c1) {
+                        if (!bb.has(0, idx2) && (bb.getCellMask(idx2) & SudokuLogicalSolver.MASK_CANDIDATES) === c1) {
                             const nc = ~c1;
                             for (let k = 0; k < 9; k++) {
                                 if (k === i || k === j) continue;
@@ -240,16 +240,16 @@ export const TECHNIQUES_ADVANCED = [
 
                 for (let d1 = 1; d1 <= 8; d1++) {
                     const p1 = bb.housePosMask(d1, houseCells);
-                    if (SudokuBitUtils.popcount(p1) !== 2) continue;
+                    if (SudokuLogicalSolver.popcount(p1) !== 2) continue;
                     for (let d2 = d1 + 1; d2 <= 9; d2++) {
                         if (bb.housePosMask(d2, houseCells) !== p1) continue;
                         const keepMask = (1 << (d1 - 1)) | (1 << (d2 - 1));
-                        
-                        SudokuBitUtils.forEachBit(p1, (pos) => {
+
+                        SudokuLogicalSolver.forEachBit(p1, (pos) => {
                             const idx = houseCells[pos];
                             const cellMask = bb.getCellMask(idx);
-                            if (cellMask & ~keepMask & SudokuBitUtils.MASK_CANDIDATES) {
-                                solver.clearCandidates(idx, ~keepMask & SudokuBitUtils.MASK_CANDIDATES);
+                            if (cellMask & ~keepMask & SudokuLogicalSolver.MASK_CANDIDATES) {
+                                solver.clearCandidates(idx, ~keepMask & SudokuLogicalSolver.MASK_CANDIDATES);
                                 solver.difficultyLog.push({ technique: 'Hidden Pair', idx, val: 0 });
                                 changed = true;
                             }
@@ -276,7 +276,7 @@ export const TECHNIQUES_ADVANCED = [
                 for (let j = 0; j < 9; j++) {
                     const idx = HOUSES[houseBase + j];
                     const mask = bb.getCellMask(idx);
-                    const cnt = SudokuBitUtils.popcount(mask);
+                    const cnt = SudokuLogicalSolver.popcount(mask);
                     if (!bb.has(0, idx) && cnt >= 2 && cnt <= 3) {
                         cells.push({ idx, mask });
                     }
@@ -287,7 +287,7 @@ export const TECHNIQUES_ADVANCED = [
                     for (let j = i + 1; j < cells.length; j++) {
                         for (let k = j + 1; k < cells.length; k++) {
                             const union = cells[i].mask | cells[j].mask | cells[k].mask;
-                            if (SudokuBitUtils.popcount(union) === 3) {
+                            if (SudokuLogicalSolver.popcount(union) === 3) {
                                 for (let l = 0; l < 9; l++) {
                                     const idx = HOUSES[houseBase + l];
                                     if (idx === cells[i].idx || idx === cells[j].idx || idx === cells[k].idx) continue;
@@ -322,7 +322,7 @@ export const TECHNIQUES_ADVANCED = [
                 const cands = [];
                 for (let d = 1; d <= 9; d++) {
                     const p = bb.housePosMask(d, houseCells);
-                    if (p && SudokuBitUtils.popcount(p) >= 2 && SudokuBitUtils.popcount(p) <= 3) cands.push({ d, p });
+                    if (p && SudokuLogicalSolver.popcount(p) >= 2 && SudokuLogicalSolver.popcount(p) <= 3) cands.push({ d, p });
                 }
                 if (cands.length < 3) continue;
 
@@ -330,14 +330,14 @@ export const TECHNIQUES_ADVANCED = [
                     for (let j = i + 1; j < cands.length; j++) {
                         for (let k = j + 1; k < cands.length; k++) {
                             const uPos = cands[i].p | cands[j].p | cands[k].p;
-                            if (SudokuBitUtils.popcount(uPos) !== 3) continue;
+                            if (SudokuLogicalSolver.popcount(uPos) !== 3) continue;
                             const keepMask = (1 << (cands[i].d - 1)) | (1 << (cands[j].d - 1)) | (1 << (cands[k].d - 1));
                             let pm = uPos;
                             while (pm) {
                                 const bitPos = pm & -pm; pm ^= bitPos;
-                                const idx = HOUSES[houseBase + SudokuBitUtils.bitToDigit(bitPos) - 1];
-                                if (bb.getCellMask(idx) & ~keepMask & SudokuBitUtils.MASK_CANDIDATES) {
-                                    solver.clearCandidates(idx, ~keepMask & SudokuBitUtils.MASK_CANDIDATES);
+                                const idx = HOUSES[houseBase + SudokuLogicalSolver.bitToDigit(bitPos) - 1];
+                                if (bb.getCellMask(idx) & ~keepMask & SudokuLogicalSolver.MASK_CANDIDATES) {
+                                    solver.clearCandidates(idx, ~keepMask & SudokuLogicalSolver.MASK_CANDIDATES);
                                     solver.difficultyLog.push({ technique: 'Hidden Triple', idx, val: 0 });
                                     changed = true;
                                 }
@@ -366,16 +366,16 @@ export const TECHNIQUES_ADVANCED = [
                     const units = [];
                     for (let i = 0; i < 9; i++) {
                         const mask = dim.mask(bb, d, i);
-                        if (SudokuBitUtils.popcount(mask) === 2) units.push({ i, mask });
+                        if (SudokuLogicalSolver.popcount(mask) === 2) units.push({ i, mask });
                     }
 
                     for (let a = 0; a < units.length; a++) {
                         for (let b = a + 1; b < units.length; b++) {
                             if (units[a].mask === units[b].mask) {
                                 let m = units[a].mask;
-                                SudokuBitUtils.forEachBit(m, (pos) => {
+                                SudokuLogicalSolver.forEachBit(m, (pos) => {
                                     const otherDim = (dim.name === 'row') ? SudokuLogicalSolver.DIMENSIONS[1] : SudokuLogicalSolver.DIMENSIONS[0];
-                                    SudokuBitUtils.forEachBit(otherDim.mask(bb, d, pos), (unitIdx) => {
+                                    SudokuLogicalSolver.forEachBit(otherDim.mask(bb, d, pos), (unitIdx) => {
                                         if (unitIdx !== units[a].i && unitIdx !== units[b].i) {
                                             const idx = otherDim.toIdx(pos, unitIdx);
                                             solver.clearCandidate(idx, d);
@@ -409,19 +409,19 @@ export const TECHNIQUES_ADVANCED = [
 
                     for (let i1 = 0; i1 < 7; i1++) {
                         const m1 = masks[i1];
-                        if (!m1 || SudokuBitUtils.popcount(m1) > 3) continue;
+                        if (!m1 || SudokuLogicalSolver.popcount(m1) > 3) continue;
                         for (let i2 = i1 + 1; i2 < 8; i2++) {
                             const m2 = masks[i2];
-                            if (!m2 || SudokuBitUtils.popcount(m1 | m2) > 3) continue;
+                            if (!m2 || SudokuLogicalSolver.popcount(m1 | m2) > 3) continue;
                             for (let i3 = i2 + 1; i3 < 9; i3++) {
                                 const m3 = masks[i3];
                                 const union = m1 | m2 | m3;
-                                if (!m3 || SudokuBitUtils.popcount(union) !== 3) continue;
-                                if (SudokuBitUtils.popcount(m1) < 2 || SudokuBitUtils.popcount(m2) < 2 || SudokuBitUtils.popcount(m3) < 2) continue;
+                                if (!m3 || SudokuLogicalSolver.popcount(union) !== 3) continue;
+                                if (SudokuLogicalSolver.popcount(m1) < 2 || SudokuLogicalSolver.popcount(m2) < 2 || SudokuLogicalSolver.popcount(m3) < 2) continue;
 
-                                SudokuBitUtils.forEachBit(union, (pos) => {
+                                SudokuLogicalSolver.forEachBit(union, (pos) => {
                                     const otherDim = (dim.name === 'row') ? SudokuLogicalSolver.DIMENSIONS[1] : SudokuLogicalSolver.DIMENSIONS[0];
-                                    SudokuBitUtils.forEachBit(otherDim.mask(bb, d, pos), (unitIdx) => {
+                                    SudokuLogicalSolver.forEachBit(otherDim.mask(bb, d, pos), (unitIdx) => {
                                         if (unitIdx !== i1 && unitIdx !== i2 && unitIdx !== i3) {
                                             const idx = otherDim.toIdx(pos, unitIdx);
                                             solver.clearCandidate(idx, d);
@@ -469,13 +469,13 @@ export const TECHNIQUES_ADVANCED = [
 
                         // Bit-Native XY-Wing Logic: Pivot XY, Wings XZ, YZ -> Union XYZ (popcount 3)
                         const union = pMask | w1Mask | w2Mask;
-                        if (SudokuBitUtils.popcount(union) === 3) {
-                            if (SudokuBitUtils.popcount(pMask & w1Mask) === 1 &&
-                                SudokuBitUtils.popcount(pMask & w2Mask) === 1 &&
-                                SudokuBitUtils.popcount(w1Mask & w2Mask) === 1) {
+                        if (SudokuLogicalSolver.popcount(union) === 3) {
+                            if (SudokuLogicalSolver.popcount(pMask & w1Mask) === 1 &&
+                                SudokuLogicalSolver.popcount(pMask & w2Mask) === 1 &&
+                                SudokuLogicalSolver.popcount(w1Mask & w2Mask) === 1) {
 
                                 const zBit = w1Mask & w2Mask;
-                                const dZ = SudokuBitUtils.bitToDigit(zBit);
+                                const dZ = SudokuLogicalSolver.bitToDigit(zBit);
 
                                 for (let target = 0; target < 81; target++) {
                                     if (target === w1Idx || target === w2Idx || target === pivotIdx) continue;
@@ -510,18 +510,18 @@ export const TECHNIQUES_ADVANCED = [
                     const bases = [];
                     for (let i = 0; i < 9; i++) {
                         const mask = dim.mask(bb, d, i);
-                        if (SudokuBitUtils.popcount(mask) === 2) bases.push({ i, mask });
+                        if (SudokuLogicalSolver.popcount(mask) === 2) bases.push({ i, mask });
                     }
 
                     for (let i = 0; i < bases.length; i++) {
                         for (let j = i + 1; j < bases.length; j++) {
                             const shared = bases[i].mask & bases[j].mask;
-                            if (SudokuBitUtils.popcount(shared) !== 1) continue;
+                            if (SudokuLogicalSolver.popcount(shared) !== 1) continue;
 
                             const uniqueI = bases[i].mask ^ shared;
                             const uniqueJ = bases[j].mask ^ shared;
-                            const posI = SudokuBitUtils.bitToDigit(uniqueI) - 1;
-                            const posJ = SudokuBitUtils.bitToDigit(uniqueJ) - 1;
+                            const posI = SudokuLogicalSolver.bitToDigit(uniqueI) - 1;
+                            const posJ = SudokuLogicalSolver.bitToDigit(uniqueJ) - 1;
 
                             const otherDim = (dim.name === 'row') ? SudokuLogicalSolver.DIMENSIONS[1] : SudokuLogicalSolver.DIMENSIONS[0];
                             const cellI = otherDim.toIdx(posI, bases[i].i);
@@ -564,7 +564,7 @@ export const TECHNIQUES_ADVANCED = [
                             const cells = [r1 * 9 + c1, r1 * 9 + c2, r2 * 9 + c1, r2 * 9 + c2];
                             if (cells.some(idx => bb.has(0, idx))) continue;
 
-                            const biCells = cells.filter(idx => SudokuBitUtils.popcount(bb.getCellMask(idx)) === 2);
+                            const biCells = cells.filter(idx => SudokuLogicalSolver.popcount(bb.getCellMask(idx)) === 2);
                             if (biCells.length !== 3) continue;
 
                             const sharedMask = bb.getCellMask(biCells[0]);
@@ -611,7 +611,7 @@ export const TECHNIQUES_ADVANCED = [
 
                     // If we found a chain (at least link 2: start-end)
                     if (path.length >= 1 && (nextMask & startBit)) {
-                        const dStart = SudokuBitUtils.bitToDigit(startBit);
+                        const dStart = SudokuLogicalSolver.bitToDigit(startBit);
                         let found = false;
                         for (let i = 0; i < 81; i++) {
                             if (i === startIdx || i === next || bb.has(0, i) || !bb.has(dStart, i)) continue;
@@ -636,10 +636,10 @@ export const TECHNIQUES_ADVANCED = [
 
             for (const start of biCells) {
                 const sm = bb.getCellMask(start);
-                SudokuBitUtils.forEachBit(sm, (bitIdx) => {
+                SudokuLogicalSolver.forEachBit(sm, (bitIdx) => {
                     if (changed) return;
                     const bit = 1 << bitIdx;
-                    
+
                     path.push(start);
                     inPath[start] = 1;
                     dfs(start, bit, bit, start);

@@ -37,7 +37,7 @@ export class SudokuBitUtils {
         if (!this.isSolved(cell)) return 0;
         const bits = cell & this.MASK_CANDIDATES;
         if (bits === 0) return 0;
-        return this.bitToDigit(bits);
+        return SudokuLogicalSolver.bitToDigit(bits);
     }
 
     static createSolved(digit, isGiven = false) {
@@ -101,45 +101,6 @@ export class SudokuBitUtils {
         }
     }
 
-    static popcount(n) {
-        let count = 0;
-        let v = n >>> 0;
-        while (v) { v &= (v - 1); count++; }
-        return count;
-    }
-
-    static bitToDigit(bit) {
-        return (Math.log2(bit & 0x1FF) + 1) | 0;
-    }
-
-    static forEachBit(mask, callback) {
-        let m = mask & 0x01FF;
-        while (m) {
-            const bit = m & -m;
-            m ^= bit;
-            callback(this.bitToDigit(bit) - 1);
-        }
-    }
-
-    static maskToDigits(mask) {
-        const out = [];
-        let m = mask & 0x01FF;
-        while (m) {
-            const b = m & -m;
-            out.push(this.bitToDigit(b));
-            m ^= b;
-        }
-        return out;
-    }
-
-    static digitsToMask(digits) {
-        let mask = 0;
-        for (let i = 0; i < digits.length; i++) {
-            mask |= (1 << (digits[i] - 1));
-        }
-        return mask;
-    }
-
     static canModify(cell) {
         return (cell & this.BIT_GIVEN) === 0;
     }
@@ -198,6 +159,15 @@ export class SudokuBitUtils {
     static isValid(grid, idx, num) {
         return !this.cellConflicts(grid, idx, num);
     }
+
+    static shuffleArray(array) {
+        const arr = [...array];
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
 }
 
 // ============================================================================
@@ -205,8 +175,57 @@ export class SudokuBitUtils {
 // Digit-centric presence masks for rapid deduction.
 // ============================================================================
 
-class SudokuBitBoard {
-    constructor() { this.buf = new Uint32Array(30); }
+export class SudokuBitBoard {
+    static initialized = false;
+    static PEERS = new Uint8Array(81 * 20);
+    static HOUSES = new Uint8Array(27 * 9);
+    static CELL_HOUSES = new Uint8Array(81 * 3);
+    static HOUSE_MASKS = new Uint32Array(27 * 3);
+    static ADJACENCY_MATRIX = new Uint8Array(81 * 81);
+
+    static init() {
+        if (this.initialized) return;
+        this.initialized = true;
+        for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+                const idx = r * 9 + c;
+                const peers = new Set();
+                for (let i = 0; i < 9; i++) { if (i !== c) peers.add(r * 9 + i); if (i !== r) peers.add(i * 9 + c); }
+                const br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
+                for (let i = br; i < br + 3; i++) for (let j = bc; j < bc + 3; j++) if (i !== r || j !== c) peers.add(i * 9 + j);
+                const peerArray = Array.from(peers);
+                for (let p = 0; p < 20; p++) {
+                    const pi = peerArray[p]; this.PEERS[idx * 20 + p] = pi; this.ADJACENCY_MATRIX[idx * 81 + pi] = 1;
+                }
+            }
+        }
+        for (let i = 0; i < 9; i++) {
+            const br = (i / 3 | 0) * 3, bc = (i % 3) * 3;
+            for (let j = 0; j < 9; j++) {
+                this.HOUSES[i * 9 + j] = i * 9 + j;
+                this.HOUSES[(9 + i) * 9 + j] = j * 9 + i;
+                this.HOUSES[(18 + i) * 9 + j] = (br + (j / 3 | 0)) * 9 + (bc + (j % 3));
+            }
+        }
+        for (let i = 0; i < 81; i++) {
+            const r = i / 9 | 0, c = i % 9, b = (r / 3 | 0) * 3 + (c / 3 | 0);
+            this.CELL_HOUSES[i * 3] = r; this.CELL_HOUSES[i * 3 + 1] = 9 + c; this.CELL_HOUSES[i * 3 + 2] = 18 + b;
+        }
+        this.HOUSE_MASKS.fill(0);
+        for (let h = 0; h < 27; h++) {
+            for (let j = 0; j < 9; j++) {
+                const ci = this.HOUSES[h * 9 + j];
+                this.HOUSE_MASKS[h * 3 + (ci >> 5)] |= 1 << (ci & 31);
+            }
+        }
+    }
+
+    static sees(i, j) { return this.ADJACENCY_MATRIX[i * 81 + j] === 1; }
+
+    constructor() {
+        SudokuBitBoard.init();
+        this.buf = new Uint32Array(30);
+    }
 
     reset() { this.buf.fill(0); }
 
@@ -234,9 +253,9 @@ class SudokuBitBoard {
 
     houseCount(d, h0, h1, h2) {
         const b = d * 3;
-        return SudokuBitUtils.popcount(this.buf[b] & h0) +
-            SudokuBitUtils.popcount(this.buf[b + 1] & h1) +
-            SudokuBitUtils.popcount(this.buf[b + 2] & h2);
+        return SudokuLogicalSolver.popcount(this.buf[b] & h0) +
+            SudokuLogicalSolver.popcount(this.buf[b + 1] & h1) +
+            SudokuLogicalSolver.popcount(this.buf[b + 2] & h2);
     }
 
     houseFirstCell(d, h0, h1, h2) {
@@ -441,57 +460,48 @@ export class SudokuDLX {
 // ============================================================================
 
 export class SudokuLogicalSolver {
-    static initialized = false;
-    static PEERS = new Uint8Array(81 * 20);
-    static HOUSES = new Uint8Array(27 * 9);
-    static CELL_HOUSES = new Uint8Array(81 * 3);
-    static SCRATCH_BIT_GRID = new Uint32Array(81);
-    static SCRATCH_INT_GRID = new Uint8Array(81);
-    static HOUSE_MASKS = new Uint32Array(27 * 3);
-    static ADJACENCY_MATRIX = new Uint8Array(81 * 81);
+    static MASK_CANDIDATES = 0x01FF;
 
-    static sees(i, j) { return this.ADJACENCY_MATRIX[i * 81 + j] === 1; }
+    // Delegate to SudokuBitBoard for metadata and initialization
+    static init() { return SudokuBitBoard.init(); }
+    static get PEERS() { return SudokuBitBoard.PEERS; }
+    static get HOUSES() { return SudokuBitBoard.HOUSES; }
+    static get CELL_HOUSES() { return SudokuBitBoard.CELL_HOUSES; }
+    static get HOUSE_MASKS() { return SudokuBitBoard.HOUSE_MASKS; }
+    static sees(i, j) { return SudokuBitBoard.sees(i, j); }
 
     static DIMENSIONS = [
         { name: 'row', mask: (bb, d, i) => bb.rowMask(d, i), toIdx: (i, pos) => i * 9 + pos },
         { name: 'col', mask: (bb, d, i) => bb.colMask(d, i), toIdx: (i, pos) => pos * 9 + i }
     ];
 
-    static init() {
-        if (this.initialized) return;
-        this.initialized = true;
-        for (let r = 0; r < 9; r++) {
-            for (let c = 0; c < 9; c++) {
-                const idx = r * 9 + c;
-                const peers = new Set();
-                for (let i = 0; i < 9; i++) { if (i !== c) peers.add(r * 9 + i); if (i !== r) peers.add(i * 9 + c); }
-                const br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
-                for (let i = br; i < br + 3; i++) for (let j = bc; j < bc + 3; j++) if (i !== r || j !== c) peers.add(i * 9 + j);
-                const peerArray = Array.from(peers);
-                for (let p = 0; p < 20; p++) {
-                    const pi = peerArray[p]; this.PEERS[idx * 20 + p] = pi; this.ADJACENCY_MATRIX[idx * 81 + pi] = 1;
-                }
-            }
+    static popcount(n) {
+        let count = 0;
+        let v = n >>> 0;
+        while (v) { v &= (v - 1); count++; }
+        return count;
+    }
+
+    static bitToDigit(bit) {
+        return (Math.log2(bit & 0x1FF) + 1) | 0;
+    }
+
+    static forEachBit(mask, callback) {
+        let m = mask & 0x01FF;
+        while (m) {
+            const bit = m & -m;
+            m ^= bit;
+            callback(this.bitToDigit(bit) - 1);
         }
-        for (let i = 0; i < 9; i++) {
-            const br = (i / 3 | 0) * 3, bc = (i % 3) * 3;
-            for (let j = 0; j < 9; j++) {
-                this.HOUSES[i * 9 + j] = i * 9 + j;
-                this.HOUSES[(9 + i) * 9 + j] = j * 9 + i;
-                this.HOUSES[(18 + i) * 9 + j] = (br + (j / 3 | 0)) * 9 + (bc + (j % 3));
-            }
+    }
+
+    static isValidBB(bb, idx, digit) {
+        const pBase = idx * 20;
+        for (let i = 0; i < 20; i++) {
+            const pi = this.PEERS[pBase + i];
+            if (bb.has(0, pi) && bb.has(digit, pi)) return false;
         }
-        for (let i = 0; i < 81; i++) {
-            const r = i / 9 | 0, c = i % 9, b = (r / 3 | 0) * 3 + (c / 3 | 0);
-            this.CELL_HOUSES[i * 3] = r; this.CELL_HOUSES[i * 3 + 1] = 9 + c; this.CELL_HOUSES[i * 3 + 2] = 18 + b;
-        }
-        this.HOUSE_MASKS.fill(0);
-        for (let h = 0; h < 27; h++) {
-            for (let j = 0; j < 9; j++) {
-                const ci = this.HOUSES[h * 9 + j];
-                this.HOUSE_MASKS[h * 3 + (ci >> 5)] |= 1 << (ci & 31);
-            }
-        }
+        return true;
     }
 
     constructor(grid, fastMode = true) {
@@ -539,7 +549,7 @@ export class SudokuLogicalSolver {
     updateMetadata() {
         this.biCells = [];
         for (let i = 0; i < 81; i++) {
-            if (!this.bb.has(0, i) && SudokuBitUtils.popcount(this.bb.getCellMask(i)) === 2) this.biCells.push(i);
+            if (!this.bb.has(0, i) && SudokuLogicalSolver.popcount(this.bb.getCellMask(i)) === 2) this.biCells.push(i);
         }
         this.metadataDirty = false;
     }
@@ -579,7 +589,7 @@ export class SudokuLogicalSolver {
                 if (d > 0) this.bb.set(d, i);
             } else {
                 let m = cell & SudokuBitUtils.MASK_CANDIDATES;
-                while (m) { const b = m & -m; this.bb.set(SudokuBitUtils.bitToDigit(b), i); m ^= b; }
+                while (m) { const b = m & -m; this.bb.set(SudokuLogicalSolver.bitToDigit(b), i); m ^= b; }
             }
         }
     }
@@ -599,7 +609,7 @@ export class SudokuLogicalSolver {
         if (this.bb.has(0, idx)) return;
         if (!this.fastMode) this.unifiedBoard[idx] &= ~(mask & SudokuBitUtils.MASK_CANDIDATES);
         let m = mask & SudokuBitUtils.MASK_CANDIDATES;
-        while (m) { const b = m & -m; this.bb.clear(SudokuBitUtils.bitToDigit(b), idx); m ^= b; }
+        while (m) { const b = m & -m; this.bb.clear(SudokuLogicalSolver.bitToDigit(b), idx); m ^= b; }
         this.metadataDirty = true;
     }
 
@@ -619,14 +629,6 @@ export class SudokuLogicalSolver {
         this.metadataDirty = true;
     }
 
-    static shuffleArray(array) {
-        const arr = [...array];
-        for (let i = arr.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [arr[i], arr[j]] = [arr[j], arr[i]];
-        }
-        return arr;
-    }
 }
 
 // ============================================================================
