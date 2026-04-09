@@ -1,6 +1,6 @@
 // ===== Internationalization (i18n) =====
 
-export const translations = {
+const translations = {
     ja: {
         reset: '最初に戻す',
         input: '入力',

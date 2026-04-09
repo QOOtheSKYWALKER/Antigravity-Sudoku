@@ -638,8 +638,7 @@ let TECH_BY_RANK = null;
 let TECHNIQUE_LEVELS = null;
 
 export const DifficultyEvaluator = {
-    DIFFICULTY_MAP: { 'basic': 1, 'easy': 2, 'medium': 3, 'hard': 4 },
-    RANK_MAP: { 1: 'basic', 2: 'easy', 3: 'medium', 4: 'hard' },
+    RANK_NAMES: ['basic', 'easy', 'medium', 'hard'],
 
     evaluate(grid, targetRank = 4, sandbox = null) {
         SudokuLogicalSolver.init();
@@ -683,11 +682,12 @@ export const DifficultyEvaluator = {
     },
 
     nameToRank(name) {
-        return this.DIFFICULTY_MAP[name?.toLowerCase()] || 0;
+        const idx = this.RANK_NAMES.indexOf(name?.toLowerCase());
+        return idx === -1 ? 0 : idx + 1;
     },
 
     rankToName(rank) {
-        return this.RANK_MAP[rank] || 'basic';
+        return this.RANK_NAMES[rank - 1] || 'basic';
     },
 
     connectDictionary(techniques) {
@@ -706,33 +706,27 @@ export const DifficultyEvaluator = {
 };
 
 const LogicalRules = {
-    applyBasicProtocol(solver, silent = false) {
-        let changed = false, loop = true;
-        while (loop) {
-            loop = false;
-            for (const tech of (TECH_BY_RANK?.[1] ?? [])) {
-                solver.currentTechnique = tech.name;
-                if (tech.applyLogical(solver, silent)) { changed = loop = true; break; }
-            }
-        }
-        solver.currentTechnique = null;
-        return changed;
-    },
-
     analyzeFull(solver) {
-        let maxRank = 1, progressing = true;
-        while (progressing) {
-            progressing = false;
-            if (this.applyBasicProtocol(solver)) { progressing = true; continue; }
-            if (TECH_BY_RANK) {
-                for (let r = 2; r <= 4; r++) {
-                    let found = false;
-                    for (const tech of TECH_BY_RANK[r]) {
-                        solver.currentTechnique = tech.name;
-                        if (tech.applyLogical(solver)) { maxRank = Math.max(maxRank, r); found = true; break; }
-                    }
-                    if (found) { progressing = true; break; }
+        let maxRank = 1;
+        let rank = 1;
+
+        while (rank <= 4) {
+            let found = false;
+            const techs = TECH_BY_RANK?.[rank] ?? [];
+
+            for (const tech of techs) {
+                solver.currentTechnique = tech.name;
+                if (tech.applyLogical(solver)) {
+                    maxRank = Math.max(maxRank, rank);
+                    found = true;
+                    break;
                 }
+            }
+
+            if (found) {
+                rank = 1;
+            } else {
+                rank++;
             }
         }
         solver.currentTechnique = null;
@@ -756,23 +750,38 @@ export const SudokuUIBridge = {
             solver.reset(unifiedBoard);
         }
 
-        // 1. Try filling singles
-        if (LogicalRules.applyBasicProtocol(solver, true)) {
-            let changed = false;
+        // 1. Try Rank 1 (Naked/Hidden Singles)
+        const rank1Techs = TECH_BY_RANK?.[1] ?? [];
+        let anyProgress = false;
+        let loop = true;
+        while (loop) {
+            loop = false;
+            for (const tech of rank1Techs) {
+                if (tech.applyLogical(solver, true)) {
+                    anyProgress = true;
+                    loop = true;
+                    break;
+                }
+            }
+        }
+
+        if (anyProgress) {
+            let fillChanged = false;
             for (let i = 0; i < 81; i++) {
                 const bCell = solver.unifiedBoard[i];
                 if (SudokuBitUtils.isSolved(bCell) && !SudokuBitUtils.isSolved(unifiedBoard[i])) {
                     unifiedBoard[i] = (unifiedBoard[i] & 0xFFFF0000) | (bCell & 0xFFFF);
-                    changed = true;
+                    fillChanged = true;
                 }
             }
-            if (changed) {
+            if (fillChanged) {
                 SudokuBitUtils.updateErrorFlags(unifiedBoard);
                 return { type: 'fill', feedbackKey: 'rocketFilled' };
             }
         }
 
-        // 2. Prune candidates using Locked Candidates
+        // 2. Try Rank 2 (Locked Candidates / Pruning)
+        // Check if dashboard has manual blanks with no candidates
         let hasBlank = false;
         for (let i = 0; i < 81; i++) {
             if (!SudokuBitUtils.isSolved(unifiedBoard[i]) && (unifiedBoard[i] & SudokuBitUtils.MASK_CANDIDATES) === 0) {
@@ -803,6 +812,7 @@ export const SudokuUIBridge = {
             SudokuBitUtils.updateErrorFlags(unifiedBoard);
             return { type: 'memo', feedbackKey: hasBlank ? 'memoDone' : 'memoPruned' };
         }
+
         return null;
     }
 };

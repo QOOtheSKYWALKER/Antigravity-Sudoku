@@ -328,9 +328,9 @@ class SudokuOrchestrator {
 
         if (this.results.length === 0) return resolve(null);
         const rank1Names = new Set(TECHNIQUES.map(t => t.name));
-        this.results.sort((a,b) => {
+        this.results.sort((a, b) => {
             if (a.hints !== b.hints) return a.hints - b.hints;
-            const score = p => Object.entries(p.techniqueCounts || {}).filter(([n]) => !rank1Names.has(n)).reduce((s,[,c]) => s+c, 0);
+            const score = p => Object.entries(p.techniqueCounts || {}).filter(([n]) => !rank1Names.has(n)).reduce((s, [, c]) => s + c, 0);
             return score(b) - score(a);
         });
         resolve(this.results[0]);
@@ -418,10 +418,10 @@ class AppController {
     moveCursor(dir) {
         const idx = this.game.getSelectedIdx();
         let r = (idx / 9) | 0, c = idx % 9;
-        if (dir === 'right') { c++; if (c>8) { c=0; r++; } if (r>8) r=0; }
-        else if (dir === 'left') { c--; if (c<0) { c=8; r--; } if (r<0) r=8; }
-        else if (dir === 'down') { r++; if (r>8) { r=0; c++; } if (c>8) c=0; }
-        else if (dir === 'up') { r--; if (r<0) { r=8; c--; } if (c<0) c=8; }
+        if (dir === 'right') { c++; if (c > 8) { c = 0; r++; } if (r > 8) r = 0; }
+        else if (dir === 'left') { c--; if (c < 0) { c = 8; r--; } if (r < 0) r = 8; }
+        else if (dir === 'down') { r++; if (r > 8) { r = 0; c++; } if (c > 8) c = 0; }
+        else if (dir === 'up') { r--; if (r < 0) { r = 8; c--; } if (c < 0) c = 8; }
         this.game.setSelectedIdx(r * 9 + c);
         this.ui.scheduleRender(this.game);
     }
@@ -485,10 +485,10 @@ class AppController {
         // App Settings wiring
         const ts = document.getElementById('theme-select'), ls = document.getElementById('lang-select');
         ts?.addEventListener('change', (e) => AppSettings.setTheme(e.target.value));
-        ls?.addEventListener('change', (e) => { 
-            applyLanguage(e.target.value); 
+        ls?.addEventListener('change', (e) => {
+            applyLanguage(e.target.value);
             this.ui.setMessage(tTechnique(this.game.currentTechnique) || (this.game.memoMode ? t('modeMemo') : t('modeInput')));
-            this.ui.scheduleRender(this.game); 
+            this.ui.scheduleRender(this.game);
         });
 
         // Event from ocr.js
