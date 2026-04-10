@@ -27,9 +27,6 @@ export class SudokuBitUtils {
     static BIT_UI_TARGET_MASK = 0x00F00000;
     static BIT_UI_TARGET_SHIFT = 20;
 
-    static BIT_UI_MASK = 0xFFFF0000;
-    static BIT_ERROR = this.BIT_UI_ERROR;
-
     static isSolved(cell) { return (cell & this.BIT_CONFIRMED) !== 0; }
     static isGiven(cell) { return (cell & this.BIT_GIVEN) !== 0; }
 
@@ -153,7 +150,6 @@ export class SudokuDLX {
     static RowR = null; static RowC = null; static RowV = null; static ROW_NODES = null;
     static ACTIVE_STATES = null; static ZOBRIST_TABLE = null;
 
-    static COL_MASK = 0x3FF;
     static initialized = false;
 
     static init() {
@@ -318,7 +314,6 @@ export class SudokuBitBoard {
     static MASK_CANDIDATES = 0x01FF;
     static PEERS = new Uint8Array(81 * 20);
     static HOUSES = new Uint8Array(27 * 9);
-    static CELL_HOUSES = new Uint8Array(81 * 3);
     static HOUSE_MASKS = new Uint32Array(27 * 3);
     static ADJACENCY_MATRIX = new Uint8Array(81 * 81);
 
@@ -345,10 +340,6 @@ export class SudokuBitBoard {
                 this.HOUSES[(9 + i) * 9 + j] = j * 9 + i;
                 this.HOUSES[(18 + i) * 9 + j] = (br + (j / 3 | 0)) * 9 + (bc + (j % 3));
             }
-        }
-        for (let i = 0; i < 81; i++) {
-            const r = i / 9 | 0, c = i % 9, b = (r / 3 | 0) * 3 + (c / 3 | 0);
-            this.CELL_HOUSES[i * 3] = r; this.CELL_HOUSES[i * 3 + 1] = 9 + c; this.CELL_HOUSES[i * 3 + 2] = 18 + b;
         }
         this.HOUSE_MASKS.fill(0);
         for (let h = 0; h < 27; h++) {
@@ -639,15 +630,10 @@ export const DifficultyEvaluator = {
 
     createSandbox() { return new SudokuLogicalSolver(new Uint8Array(81)); },
 
-    shared: null,
-    getShared() {
-        if (!this.shared) this.shared = this.createSandbox();
-        return this.shared;
-    },
 
     solveByRank(solver, maxRank) {
         SudokuBitBoard.init();
-        const finalRank = LogicalRules.analyzeFull(solver, maxRank);
+        const finalRank = this.analyzeFull(solver, maxRank);
         const solved = solver.isSolved();
         const info = this.getDifficultyInfo(solver.difficultyLog);
         const techniqueCounts = {};
@@ -692,10 +678,8 @@ export const DifficultyEvaluator = {
             TECHNIQUE_LEVELS[t.name] = t.rank;
             SudokuLogicalSolver.prototype[t.id] = function () { return t.applyLogical(this); };
         }
-    }
-};
+    },
 
-const LogicalRules = {
     analyzeFull(solver) {
         let maxRank = 1;
         let rank = 1;
