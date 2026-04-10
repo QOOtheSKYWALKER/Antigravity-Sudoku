@@ -225,7 +225,7 @@ class SudokuGenerator {
         });
 
         for (let i = 0; i < 81; i++) puzzle[i] = Utils.setSolution(puzzle[i], context.solution[i]);
-        Utils.updateAllCandidates(puzzle);
+        SudokuBitBoard.updateAllCandidates(puzzle);
 
         const finalEval = DifficultyEvaluator.evaluate(puzzle, 4);
         const patternNames = ['Symmetry', 'Mirror', 'Checker', 'Random'];

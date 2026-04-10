@@ -1,4 +1,4 @@
-import { SudokuBitUtils, SudokuDLX, DifficultyEvaluator } from './solver.js';
+import { SudokuBitUtils, SudokuBitBoard, SudokuDLX, DifficultyEvaluator } from './solver.js';
 import { TECHNIQUES, TECHNIQUES_ADVANCED } from './solver-techniques.js';
 
 /**
@@ -153,7 +153,7 @@ class HeatmapVisualizer {
     }
 
     static updateMiniBoard(grid, report, miniBoardEl, rank1Names) {
-        const bitGrid = SudokuBitUtils.fromUint8Array(grid);
+        const bitGrid = SudokuBitBoard.fromUint8Array(grid);
         let cluesCount = 0;
         for (let i = 0; i < 81; i++) {
             const cell = miniBoardEl.children[i];
