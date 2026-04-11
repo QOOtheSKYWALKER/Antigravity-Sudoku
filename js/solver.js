@@ -45,13 +45,9 @@ export class SudokuBitUtils {
         return cell;
     }
 
-    static getSolution(cell) {
-        return (cell & this.BIT_SOLUTION_MASK) >>> this.BIT_SOLUTION_SHIFT;
-    }
+    static getSolution(cell) { return (cell & this.BIT_SOLUTION_MASK) >>> this.BIT_SOLUTION_SHIFT; }
 
-    static setSolution(cell, digit) {
-        return (cell & ~this.BIT_SOLUTION_MASK) | ((digit & 0xF) << this.BIT_SOLUTION_SHIFT);
-    }
+    static setSolution(cell, digit) { return (cell & ~this.BIT_SOLUTION_MASK) | ((digit & 0xF) << this.BIT_SOLUTION_SHIFT); }
 
     static confirmValue(cell, digit) {
         const meta = cell & 0xFFFFFE00; // Preserve bits 9-31
@@ -73,9 +69,7 @@ export class SudokuBitUtils {
         }
     }
 
-    static canModify(cell) {
-        return (cell & this.BIT_GIVEN) === 0;
-    }
+    static canModify(cell) { return (cell & this.BIT_GIVEN) === 0; }
 
     static toIntGrid(bitGrid) {
         const g = new Uint8Array(81);
@@ -83,6 +77,30 @@ export class SudokuBitUtils {
             g[i] = this.getValue(bitGrid[i]);
         }
         return g;
+    }
+
+    static fromUint8Array(grid, isGiven = false) {
+        const unified = new Uint32Array(81);
+        for (let i = 0; i < 81; i++) {
+            if (grid[i] !== 0) unified[i] = this.createSolved(grid[i], isGiven);
+        }
+        this.updateAllCandidates(unified);
+        return unified;
+    }
+
+    static updateAllCandidates(unified) {
+        for (let i = 0; i < 81; i++) {
+            const cell = unified[i];
+            if (!this.isSolved(cell)) {
+                let mask = this.MASK_CANDIDATES;
+                for (let k = 0; k < 20; k++) {
+                    const p = SudokuBitBoard.PEERS[i * 20 + k];
+                    const v = this.getValue(unified[p]);
+                    if (v !== 0) mask &= ~(1 << (v - 1));
+                }
+                unified[i] = (cell & ~this.MASK_CANDIDATES) | mask;
+            }
+        }
     }
 
     static updateErrorFlags(bitGrid) {
@@ -105,7 +123,6 @@ export class SudokuBitUtils {
     }
 
     static forEachPeer(idx, callback) {
-        SudokuBitBoard.init();
         for (let p = 0; p < 20; p++) {
             callback(SudokuBitBoard.PEERS[idx * 20 + p]);
         }
@@ -123,9 +140,7 @@ export class SudokuBitUtils {
         return conflict;
     }
 
-    static isValid(grid, idx, num) {
-        return !this.cellConflicts(grid, idx, num);
-    }
+    static isValid(grid, idx, num) { return !this.cellConflicts(grid, idx, num); }
 
     static shuffleArray(array) {
         const arr = [...array];
@@ -214,9 +229,7 @@ export class SudokuDLX {
         this.S.set(this.CLEAN_S); this.ACTIVE_STATES.fill(0);
     }
 
-    static clearMetaBits() {
-        this.ACTIVE_STATES.fill(0);
-    }
+    static clearMetaBits() { this.ACTIVE_STATES.fill(0); }
 
     static cover(c) {
         this.R[this.L[c]] = this.R[c]; this.L[this.R[c]] = this.L[c];
@@ -303,6 +316,7 @@ export class SudokuDLX {
         return false;
     }
 }
+SudokuDLX.init();
 
 // ============================================================================
 // [SECTION 3: BITBOARD STRUCTURE]
@@ -357,9 +371,7 @@ export class SudokuBitBoard {
         return count;
     }
 
-    static bitToDigit(bit) {
-        return (Math.log2(bit & this.MASK_CANDIDATES) + 1) | 0;
-    }
+    static bitToDigit(bit) { return (Math.log2(bit & this.MASK_CANDIDATES) + 1) | 0; }
 
     static forEachBit(mask, callback) {
         let m = mask & this.MASK_CANDIDATES;
@@ -380,32 +392,6 @@ export class SudokuBitBoard {
     }
 
     static sees(i, j) { return this.ADJACENCY_MATRIX[i * 81 + j] === 1; }
-
-    static fromUint8Array(grid, isGiven = false) {
-        this.init();
-        const unified = new Uint32Array(81);
-        for (let i = 0; i < 81; i++) {
-            if (grid[i] !== 0) unified[i] = SudokuBitUtils.createSolved(grid[i], isGiven);
-        }
-        this.updateAllCandidates(unified);
-        return unified;
-    }
-
-    static updateAllCandidates(unified) {
-        this.init();
-        for (let i = 0; i < 81; i++) {
-            const cell = unified[i];
-            if (!SudokuBitUtils.isSolved(cell)) {
-                let mask = this.MASK_CANDIDATES;
-                for (let k = 0; k < 20; k++) {
-                    const p = this.PEERS[i * 20 + k];
-                    const v = SudokuBitUtils.getValue(unified[p]);
-                    if (v !== 0) mask &= ~(1 << (v - 1));
-                }
-                unified[i] = (cell & ~this.MASK_CANDIDATES) | mask;
-            }
-        }
-    }
 
     static DIMENSIONS = [
         { name: 'row', mask: (bb, d, i) => bb.rowMask(d, i), toIdx: (i, pos) => i * 9 + pos },
@@ -484,7 +470,6 @@ export class SudokuBitBoard {
 export class SudokuLogicalSolver {
 
     constructor(grid, fastMode = true) {
-        SudokuBitBoard.init();
         this.difficultyLog = [];
         this.fillLog = [];
         this.fastMode = fastMode;
@@ -511,7 +496,7 @@ export class SudokuLogicalSolver {
                         if (sol > 0) this.unifiedBoard[i] = (cell & ~SudokuBitBoard.MASK_CANDIDATES) | (1 << (sol - 1));
                     }
                 }
-                SudokuBitBoard.updateAllCandidates(this.unifiedBoard);
+                SudokuBitUtils.updateAllCandidates(this.unifiedBoard);
             } else {
                 this._fillUnifiedFromUint8(grid);
             }
@@ -555,7 +540,7 @@ export class SudokuLogicalSolver {
     _fillUnifiedFromUint8(grid) {
         this.unifiedBoard.fill(0);
         for (let i = 0; i < 81; i++) if (grid[i] !== 0) this.unifiedBoard[i] = SudokuBitUtils.createSolved(grid[i], true);
-        SudokuBitBoard.updateAllCandidates(this.unifiedBoard);
+        SudokuBitUtils.updateAllCandidates(this.unifiedBoard);
     }
 
     rebuildBB() {
@@ -573,9 +558,7 @@ export class SudokuLogicalSolver {
         }
     }
 
-    isSolved() {
-        return this.bb.buf[0] === 0xFFFFFFFF && this.bb.buf[1] === 0xFFFFFFFF && (this.bb.buf[2] & 0x1FFFF) === 0x1FFFF;
-    }
+    isSolved() { return this.bb.buf[0] === 0xFFFFFFFF && this.bb.buf[1] === 0xFFFFFFFF && (this.bb.buf[2] & 0x1FFFF) === 0x1FFFF; }
 
     clearCandidate(idx, d) {
         if (this.bb.has(0, idx)) return;
@@ -622,7 +605,6 @@ export const DifficultyEvaluator = {
     RANK_NAMES: ['basic', 'easy', 'medium', 'hard'],
 
     evaluate(grid, targetRank = 4, sandbox = null) {
-        SudokuBitBoard.init();
         const solver = sandbox || DifficultyEvaluator.createSandbox();
         solver.reset(grid);
         return DifficultyEvaluator.solveByRank(solver, targetRank);
@@ -630,9 +612,7 @@ export const DifficultyEvaluator = {
 
     createSandbox() { return new SudokuLogicalSolver(new Uint8Array(81)); },
 
-
     solveByRank(solver, maxRank) {
-        SudokuBitBoard.init();
         const finalRank = this.analyzeFull(solver, maxRank);
         const solved = solver.isSolved();
         const info = this.getDifficultyInfo(solver.difficultyLog);
@@ -662,9 +642,7 @@ export const DifficultyEvaluator = {
         return idx === -1 ? 0 : idx + 1;
     },
 
-    rankToName(rank) {
-        return this.RANK_NAMES[rank - 1] || 'basic';
-    },
+    rankToName(rank) { return this.RANK_NAMES[rank - 1] || 'basic'; },
 
     connectDictionary(techniques) {
         TECH_BY_RANK = {
@@ -764,7 +742,7 @@ export const SudokuUIBridge = {
 
         const tempBoard = new Uint32Array(unifiedBoard);
         SudokuBitUtils.clearUnsolvedCandidates(tempBoard);
-        SudokuBitBoard.updateAllCandidates(tempBoard);
+        SudokuBitUtils.updateAllCandidates(tempBoard);
 
         const pruningSolver = new SudokuLogicalSolver(tempBoard, false);
         let pruned = true;

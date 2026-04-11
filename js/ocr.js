@@ -92,7 +92,6 @@ class OcrSession {
         this.recognizedCellsCount = 0;
         this.ocrLibrariesLoaded = false;
 
-        SudokuDLX.init();
         DifficultyEvaluator.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
     }
 

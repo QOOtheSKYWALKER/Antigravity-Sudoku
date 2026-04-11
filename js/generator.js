@@ -3,11 +3,10 @@
  * Procedural Pipeline Refactoring
  */
 
-import { SudokuBitUtils as Utils, SudokuBitBoard, SudokuDLX, DifficultyEvaluator } from './solver.js';
+import { SudokuBitUtils as Utils, SudokuDLX, DifficultyEvaluator } from './solver.js';
 import { TECHNIQUES, TECHNIQUES_ADVANCED } from './solver-techniques.js';
 
 // Global Engine Setup
-SudokuDLX.init();
 DifficultyEvaluator.connectDictionary([...TECHNIQUES, ...TECHNIQUES_ADVANCED]);
 const evalSandbox = DifficultyEvaluator.createSandbox();
 
@@ -111,8 +110,6 @@ class GenerationContext {
  */
 class SudokuGenerator {
     static generateSinglePattern(targetRank, patternType = 0) {
-        SudokuBitBoard.init();
-        SudokuDLX.init();
         let bestResult = null;
 
         for (let trial = 0; trial < 50; trial++) {
@@ -225,7 +222,7 @@ class SudokuGenerator {
         });
 
         for (let i = 0; i < 81; i++) puzzle[i] = Utils.setSolution(puzzle[i], context.solution[i]);
-        SudokuBitBoard.updateAllCandidates(puzzle);
+        Utils.updateAllCandidates(puzzle);
 
         const finalEval = DifficultyEvaluator.evaluate(puzzle, 4);
         const patternNames = ['Symmetry', 'Mirror', 'Checker', 'Random'];
