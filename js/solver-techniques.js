@@ -6,7 +6,6 @@ import { SudokuBitBoard, SudokuLogicalSolver as solver } from './solver.js';
  * Flat static memory model:
  *   solver.unifiedBoard -> Uint32Array(81), index = r*9+c (Single Source of Truth)
  *   solver.setCellValue(idx, val, technique)
- *   solver.difficultyLog.push({ technique, idx, val })
  *
  * House indices: 0-8 rows, 9-17 cols, 18-26 boxes (via SudokuBitBoard.HOUSES)
  */
@@ -108,7 +107,6 @@ export const TECHNIQUES = [
                             if (((r / 3 | 0) * 3 + (c / 3 | 0)) !== box) {
                                 const idx = r * 9 + c;
                                 solver.clearCandidate(idx, d);
-                                solver.difficultyLog.push({ technique: 'Locked Candidates (Pointing)', idx, val: d });
                                 changed = true;
                             }
                         });
@@ -120,7 +118,6 @@ export const TECHNIQUES = [
                             if (((r / 3 | 0) * 3 + (c / 3 | 0)) !== box) {
                                 const idx = r * 9 + c;
                                 solver.clearCandidate(idx, d);
-                                solver.difficultyLog.push({ technique: 'Locked Candidates (Pointing)', idx, val: d });
                                 changed = true;
                             }
                         });
@@ -167,7 +164,6 @@ export const TECHNIQUES = [
                                 const isOriginalUnit = (dim.name === 'row') ? ((idx / 9 | 0) === i) : ((idx % 9) === i);
                                 if (!isOriginalUnit && !bb.has(0, idx) && (bb.getCellMask(idx) & (1 << (d - 1)))) {
                                     solver.clearCandidate(idx, d);
-                                    solver.difficultyLog.push({ technique: 'Locked Candidates (Claiming)', idx, val: d });
                                     changed = true;
                                 }
                             }
@@ -208,7 +204,6 @@ export const TECHNIQUES_ADVANCED = [
                                 const idxElim = HOUSES[houseBase + k];
                                 if (!bb.has(0, idxElim) && (bb.getCellMask(idxElim) & c1)) {
                                     solver.clearCandidates(idxElim, c1);
-                                    solver.difficultyLog.push({ technique: 'Naked Pair', idx: idxElim, val: 0 });
                                     changed = true;
                                 }
                             }
@@ -245,7 +240,6 @@ export const TECHNIQUES_ADVANCED = [
                             const cellMask = bb.getCellMask(idx);
                             if (cellMask & ~keepMask & SudokuBitBoard.MASK_CANDIDATES) {
                                 solver.clearCandidates(idx, ~keepMask & SudokuBitBoard.MASK_CANDIDATES);
-                                solver.difficultyLog.push({ technique: 'Hidden Pair', idx, val: 0 });
                                 changed = true;
                             }
                         });
@@ -288,7 +282,6 @@ export const TECHNIQUES_ADVANCED = [
                                     if (idx === cells[i].idx || idx === cells[j].idx || idx === cells[k].idx) continue;
                                     if (!bb.has(0, idx) && (bb.getCellMask(idx) & union)) {
                                         solver.clearCandidates(idx, union);
-                                        solver.difficultyLog.push({ technique: 'Naked Triple', idx, val: 0 });
                                         changed = true;
                                     }
                                 }
@@ -333,7 +326,6 @@ export const TECHNIQUES_ADVANCED = [
                                 const idx = HOUSES[houseBase + SudokuBitBoard.bitToDigit(bitPos) - 1];
                                 if (bb.getCellMask(idx) & ~keepMask & SudokuBitBoard.MASK_CANDIDATES) {
                                     solver.clearCandidates(idx, ~keepMask & SudokuBitBoard.MASK_CANDIDATES);
-                                    solver.difficultyLog.push({ technique: 'Hidden Triple', idx, val: 0 });
                                     changed = true;
                                 }
                             }
@@ -373,7 +365,6 @@ export const TECHNIQUES_ADVANCED = [
                                         if (unitIdx !== units[a].i && unitIdx !== units[b].i) {
                                             const idx = otherDim.toIdx(pos, unitIdx);
                                             solver.clearCandidate(idx, d);
-                                            solver.difficultyLog.push({ technique: 'X-Wing', idx, val: d });
                                             changed = true;
                                         }
                                     });
@@ -418,7 +409,6 @@ export const TECHNIQUES_ADVANCED = [
                                         if (unitIdx !== i1 && unitIdx !== i2 && unitIdx !== i3) {
                                             const idx = otherDim.toIdx(pos, unitIdx);
                                             solver.clearCandidate(idx, d);
-                                            solver.difficultyLog.push({ technique: 'Swordfish', idx, val: d });
                                             changed = true;
                                         }
                                     });
@@ -474,7 +464,6 @@ export const TECHNIQUES_ADVANCED = [
                                     if (!bb.has(0, target) && bb.has(dZ, target)) {
                                         if (SudokuBitBoard.sees(target, w1Idx) && SudokuBitBoard.sees(target, w2Idx)) {
                                             solver.clearCandidate(target, dZ);
-                                            solver.difficultyLog.push({ technique: 'Y-Wing', idx: target, val: dZ });
                                             changed = true;
                                         }
                                     }
@@ -523,7 +512,6 @@ export const TECHNIQUES_ADVANCED = [
                                 if (k === cellI || k === cellJ) continue;
                                 if (SudokuBitBoard.sees(k, cellI) && SudokuBitBoard.sees(k, cellJ)) {
                                     solver.clearCandidate(k, d);
-                                    solver.difficultyLog.push({ technique: 'Skyscraper', idx: k, val: d });
                                     changed = true;
                                 }
                             }
@@ -564,7 +552,6 @@ export const TECHNIQUES_ADVANCED = [
                             if (!(bb.getCellMask(target) & sharedMask)) continue;
 
                             solver.clearCandidates(target, sharedMask);
-                            solver.difficultyLog.push({ technique: 'Unique Rectangle (Type 1)', idx: target, val: 0 });
                             changed = true;
                         }
                     }
@@ -606,7 +593,6 @@ export const TECHNIQUES_ADVANCED = [
                             if (i === startIdx || i === next || bb.has(0, i) || !bb.has(dStart, i)) continue;
                             if (SudokuBitBoard.sees(i, startIdx) && SudokuBitBoard.sees(i, next)) {
                                 solver.clearCandidate(i, dStart);
-                                solver.difficultyLog.push({ technique: 'XY-Chain', idx: i, val: dStart });
                                 changed = true;
                                 found = true;
                             }

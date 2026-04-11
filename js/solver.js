@@ -570,17 +570,18 @@ export class SudokuLogicalSolver {
     }
 
     setCellValue(idx, val, technique, silent = false) {
-        if (!this.fastMode) this.unifiedBoard[idx] = SudokuBitUtils.confirmValue(this.unifiedBoard[idx], val);
+        if (!this.fastMode) {
+            this.unifiedBoard[idx] = SudokuBitUtils.confirmValue(this.unifiedBoard[idx], val);
+            const mask = ~(1 << (val - 1));
+            SudokuBitUtils.forEachPeer(idx, (p) => {
+                if (!this.bb.has(0, p)) this.unifiedBoard[p] &= mask;
+            });
+        }
         this.bb.set(0, idx);
         for (let d = 1; d <= 9; d++) if (d !== val) this.bb.clear(d, idx);
-        const mask = ~(1 << (val - 1));
         SudokuBitUtils.forEachPeer(idx, (p) => {
-            if (!this.bb.has(0, p)) {
-                if (!this.fastMode) this.unifiedBoard[p] &= mask;
-                this.bb.clear(val, p);
-            }
+            if (!this.bb.has(0, p)) this.bb.clear(val, p);
         });
-        if (!silent) this.difficultyLog.push({ technique, idx, val });
         this.fillLog.push(idx);
         this.metadataDirty = true;
     }
@@ -661,8 +662,8 @@ export const DifficultyEvaluator = {
             const techs = TECH_BY_RANK?.[rank] ?? [];
 
             for (const tech of techs) {
-                solver.currentTechnique = tech.name;
                 if (tech.applyLogical(solver)) {
+                    solver.difficultyLog.push({ technique: tech.name, idx: 0, val: 0 });
                     maxRank = Math.max(maxRank, rank);
                     found = true;
                     break;
