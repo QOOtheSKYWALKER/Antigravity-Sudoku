@@ -143,6 +143,7 @@ class SudokuGenerator {
         return bestResult;
     }
 
+    // Step 1: Create Full Solution
     static createFullSolution() {
         const solutionBits = new Uint32Array(81);
         let seeds = 0;
@@ -157,6 +158,7 @@ class SudokuGenerator {
         return SudokuDLX.solveAndFill(solutionBits) > 0 ? solutionBits : null;
     }
 
+    // Step 2: Determine Pruning Sequence
     static getPruningSequence(patternType, trial) {
         const type = (patternType === -1) ? (trial % 4) : patternType;
         const strategy = [
@@ -168,6 +170,7 @@ class SudokuGenerator {
         return { indices: strategy(), type };
     }
 
+    // Step 3: Phase 1 - Coarse Pruning & BIT_INF identification
     static performPhase1Pruning(context, sequence) {
         SudokuDLX.clearMetaBits();
         const removedFlags = new Uint8Array(81);
@@ -213,6 +216,7 @@ class SudokuGenerator {
         return { canRemove, newlyEssential };
     }
 
+    // Step 5: Finalize and Evaluate
     static finalizePuzzle(reducedClues, context, patternType) {
         const puzzle = new Uint32Array(81);
         puzzle.fill(Utils.MASK_CANDIDATES);
@@ -240,7 +244,7 @@ class SudokuGenerator {
 }
 
 /**
- * Search Explorer for Phase 2 Reduction
+ * Step 4: Phase 2 - Fine-grained Zobrist Reduction
  */
 class ReductionExplorer {
     constructor(context, targetRank) {

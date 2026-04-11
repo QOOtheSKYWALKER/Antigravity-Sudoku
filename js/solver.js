@@ -8,7 +8,149 @@
  */
 
 // ============================================================================
-// [SECTION 1: BIT UTILITIES]
+// [SECTION 1: BITBOARD STRUCTURE]
+// Digit-centric presence masks for rapid deduction.
+// ============================================================================
+
+export class SudokuBitBoard {
+    static initialized = false;
+    static MASK_CANDIDATES = 0x01FF;
+    static PEERS = new Uint8Array(81 * 20);
+    static HOUSES = new Uint8Array(27 * 9);
+    static HOUSE_MASKS = new Uint32Array(27 * 3);
+    static ADJACENCY_MATRIX = new Uint8Array(81 * 81);
+
+    static init() {
+        if (this.initialized) return;
+        this.initialized = true;
+        for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+                const idx = r * 9 + c;
+                const peers = new Set();
+                for (let i = 0; i < 9; i++) { if (i !== c) peers.add(r * 9 + i); if (i !== r) peers.add(i * 9 + c); }
+                const br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
+                for (let i = br; i < br + 3; i++) for (let j = bc; j < bc + 3; j++) if (i !== r || j !== c) peers.add(i * 9 + j);
+                const peerArray = Array.from(peers);
+                for (let p = 0; p < 20; p++) {
+                    const pi = peerArray[p]; this.PEERS[idx * 20 + p] = pi; this.ADJACENCY_MATRIX[idx * 81 + pi] = 1;
+                }
+            }
+        }
+        for (let i = 0; i < 9; i++) {
+            const br = (i / 3 | 0) * 3, bc = (i % 3) * 3;
+            for (let j = 0; j < 9; j++) {
+                this.HOUSES[i * 9 + j] = i * 9 + j;
+                this.HOUSES[(9 + i) * 9 + j] = j * 9 + i;
+                this.HOUSES[(18 + i) * 9 + j] = (br + (j / 3 | 0)) * 9 + (bc + (j % 3));
+            }
+        }
+        this.HOUSE_MASKS.fill(0);
+        for (let h = 0; h < 27; h++) {
+            for (let j = 0; j < 9; j++) {
+                const ci = this.HOUSES[h * 9 + j];
+                this.HOUSE_MASKS[h * 3 + (ci >> 5)] |= 1 << (ci & 31);
+            }
+        }
+    }
+
+    static bitToDigit(bit) { return (Math.log2(bit & this.MASK_CANDIDATES) + 1) | 0; }
+    static sees(i, j) { return this.ADJACENCY_MATRIX[i * 81 + j] === 1; }
+
+    static DIMENSIONS = [
+        { name: 'row', mask: (bb, d, i) => bb.rowMask(d, i), toIdx: (i, pos) => i * 9 + pos },
+        { name: 'col', mask: (bb, d, i) => bb.colMask(d, i), toIdx: (i, pos) => pos * 9 + i }
+    ];
+
+    static popcount(n) {
+        let count = 0;
+        let v = n >>> 0;
+        while (v) { v &= (v - 1); count++; }
+        return count;
+    }
+
+    static forEachBit(mask, callback) {
+        let m = mask & this.MASK_CANDIDATES;
+        while (m) {
+            const bit = m & -m;
+            m ^= bit;
+            callback(this.bitToDigit(bit) - 1);
+        }
+    }
+
+    static isValidBB(bb, idx, digit) {
+        const pBase = idx * 20;
+        for (let i = 0; i < 20; i++) {
+            const pi = this.PEERS[pBase + i];
+            if (bb.has(0, pi) && bb.has(digit, pi)) return false;
+        }
+        return true;
+    }
+
+    constructor() {
+        SudokuBitBoard.init();
+        this.buf = new Uint32Array(30);
+    }
+
+    has(d, i) { return (this.buf[d * 3 + (i >> 5)] >>> (i & 31)) & 1; }
+    set(d, i) { this.buf[d * 3 + (i >> 5)] |= (1 << (i & 31)); }
+    clear(d, i) { this.buf[d * 3 + (i >> 5)] &= ~(1 << (i & 31)); }
+    reset() { this.buf.fill(0); }
+
+    rowMask(d, r) {
+        const start = r * 9, w = start >>> 5, shift = start & 31, base = d * 3;
+        if (shift <= 23) return (this.buf[base + w] >>> shift) & 0x1FF;
+        return ((this.buf[base + w] >>> shift) | (this.buf[base + w + 1] << (32 - shift))) & 0x1FF;
+    }
+
+    colMask(d, c) {
+        let mask = 0;
+        const base = d * 3;
+        const colStart = (9 + c) * 9;
+        const H = SudokuBitBoard.HOUSES;
+        for (let r = 0; r < 9; r++) {
+            const i = H[colStart + r];
+            if ((this.buf[base + (i >> 5)] >>> (i & 31)) & 1) mask |= (1 << r);
+        }
+        return mask;
+    }
+
+    houseCount(d, h0, h1, h2) {
+        const b = d * 3;
+        return SudokuBitBoard.popcount(this.buf[b] & h0) +
+            SudokuBitBoard.popcount(this.buf[b + 1] & h1) +
+            SudokuBitBoard.popcount(this.buf[b + 2] & h2);
+    }
+
+    houseFirstCell(d, h0, h1, h2) {
+        const b = d * 3;
+        let w;
+        w = this.buf[b] & h0; if (w) return 31 - Math.clz32(w & -w);
+        w = this.buf[b + 1] & h1; if (w) return 63 - Math.clz32(w & -w);
+        w = this.buf[b + 2] & h2; if (w) return 95 - Math.clz32(w & -w);
+        return -1;
+    }
+
+    housePosMask(d, houseCells) {
+        let mask = 0, base = d * 3;
+        for (let j = 0; j < 9; j++) {
+            const i = houseCells[j];
+            if ((this.buf[base + (i >> 5)] >>> (i & 31)) & 1) mask |= 1 << j;
+        }
+        return mask;
+    }
+
+    getCellMask(i) {
+        let mask = 0;
+        const w = i >> 5, shift = i & 31;
+        for (let d = 1; d <= 9; d++) {
+            if ((this.buf[d * 3 + w] >>> shift) & 1) mask |= (1 << (d - 1));
+        }
+        return mask;
+    }
+}
+
+// ============================================================================
+// [SECTION 2: BIT UTILITIES]
 // Pure bit manipulation logic and unified bit representation layout.
 // ============================================================================
 
@@ -29,6 +171,9 @@ export class SudokuBitUtils {
 
     static isSolved(cell) { return (cell & this.BIT_CONFIRMED) !== 0; }
     static isGiven(cell) { return (cell & this.BIT_GIVEN) !== 0; }
+    static getSolution(cell) { return (cell & this.BIT_SOLUTION_MASK) >>> this.BIT_SOLUTION_SHIFT; }
+    static setSolution(cell, digit) { return (cell & ~this.BIT_SOLUTION_MASK) | ((digit & 0xF) << this.BIT_SOLUTION_SHIFT); }
+    static canModify(cell) { return (cell & this.BIT_GIVEN) === 0; }
 
     static getValue(cell) {
         if (!this.isSolved(cell)) return 0;
@@ -45,10 +190,6 @@ export class SudokuBitUtils {
         return cell;
     }
 
-    static getSolution(cell) { return (cell & this.BIT_SOLUTION_MASK) >>> this.BIT_SOLUTION_SHIFT; }
-
-    static setSolution(cell, digit) { return (cell & ~this.BIT_SOLUTION_MASK) | ((digit & 0xF) << this.BIT_SOLUTION_SHIFT); }
-
     static confirmValue(cell, digit) {
         const meta = cell & 0xFFFFFE00; // Preserve bits 9-31
         if (digit < 1 || digit > 9) return meta;
@@ -60,7 +201,6 @@ export class SudokuBitUtils {
         return cell ^ (1 << (digit - 1));
     }
 
-
     static clearUnsolvedCandidates(unified) {
         for (let i = 0; i < 81; i++) {
             if (!this.isSolved(unified[i])) {
@@ -69,23 +209,12 @@ export class SudokuBitUtils {
         }
     }
 
-    static canModify(cell) { return (cell & this.BIT_GIVEN) === 0; }
-
     static toIntGrid(bitGrid) {
         const g = new Uint8Array(81);
         for (let i = 0; i < 81; i++) {
             g[i] = this.getValue(bitGrid[i]);
         }
         return g;
-    }
-
-    static fromUint8Array(grid, isGiven = false) {
-        const unified = new Uint32Array(81);
-        for (let i = 0; i < 81; i++) {
-            if (grid[i] !== 0) unified[i] = this.createSolved(grid[i], isGiven);
-        }
-        this.updateAllCandidates(unified);
-        return unified;
     }
 
     static updateAllCandidates(unified) {
@@ -100,6 +229,21 @@ export class SudokuBitUtils {
                 }
                 unified[i] = (cell & ~this.MASK_CANDIDATES) | mask;
             }
+        }
+    }
+
+    static fromUint8Array(grid, isGiven = false) {
+        const unified = new Uint32Array(81);
+        for (let i = 0; i < 81; i++) {
+            if (grid[i] !== 0) unified[i] = this.createSolved(grid[i], isGiven);
+        }
+        this.updateAllCandidates(unified);
+        return unified;
+    }
+
+    static forEachPeer(idx, callback) {
+        for (let p = 0; p < 20; p++) {
+            callback(SudokuBitBoard.PEERS[idx * 20 + p]);
         }
     }
 
@@ -119,12 +263,6 @@ export class SudokuBitUtils {
             } else {
                 bitGrid[i] &= ~this.BIT_UI_ERROR;
             }
-        }
-    }
-
-    static forEachPeer(idx, callback) {
-        for (let p = 0; p < 20; p++) {
-            callback(SudokuBitBoard.PEERS[idx * 20 + p]);
         }
     }
 
@@ -153,7 +291,7 @@ export class SudokuBitUtils {
 }
 
 // ============================================================================
-// [SECTION 2: DLX BRUTE-FORCE SOLVER]
+// [SECTION 3: DLX BRUTE-FORCE SOLVER]
 // Exact cover algorithm for counting and obtaining valid solutions.
 // ============================================================================
 
@@ -317,150 +455,6 @@ export class SudokuDLX {
     }
 }
 SudokuDLX.init();
-
-// ============================================================================
-// [SECTION 3: BITBOARD STRUCTURE]
-// Digit-centric presence masks for rapid deduction.
-// ============================================================================
-
-export class SudokuBitBoard {
-    static initialized = false;
-    static MASK_CANDIDATES = 0x01FF;
-    static PEERS = new Uint8Array(81 * 20);
-    static HOUSES = new Uint8Array(27 * 9);
-    static HOUSE_MASKS = new Uint32Array(27 * 3);
-    static ADJACENCY_MATRIX = new Uint8Array(81 * 81);
-
-    static init() {
-        if (this.initialized) return;
-        this.initialized = true;
-        for (let r = 0; r < 9; r++) {
-            for (let c = 0; c < 9; c++) {
-                const idx = r * 9 + c;
-                const peers = new Set();
-                for (let i = 0; i < 9; i++) { if (i !== c) peers.add(r * 9 + i); if (i !== r) peers.add(i * 9 + c); }
-                const br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
-                for (let i = br; i < br + 3; i++) for (let j = bc; j < bc + 3; j++) if (i !== r || j !== c) peers.add(i * 9 + j);
-                const peerArray = Array.from(peers);
-                for (let p = 0; p < 20; p++) {
-                    const pi = peerArray[p]; this.PEERS[idx * 20 + p] = pi; this.ADJACENCY_MATRIX[idx * 81 + pi] = 1;
-                }
-            }
-        }
-        for (let i = 0; i < 9; i++) {
-            const br = (i / 3 | 0) * 3, bc = (i % 3) * 3;
-            for (let j = 0; j < 9; j++) {
-                this.HOUSES[i * 9 + j] = i * 9 + j;
-                this.HOUSES[(9 + i) * 9 + j] = j * 9 + i;
-                this.HOUSES[(18 + i) * 9 + j] = (br + (j / 3 | 0)) * 9 + (bc + (j % 3));
-            }
-        }
-        this.HOUSE_MASKS.fill(0);
-        for (let h = 0; h < 27; h++) {
-            for (let j = 0; j < 9; j++) {
-                const ci = this.HOUSES[h * 9 + j];
-                this.HOUSE_MASKS[h * 3 + (ci >> 5)] |= 1 << (ci & 31);
-            }
-        }
-    }
-
-    static popcount(n) {
-        let count = 0;
-        let v = n >>> 0;
-        while (v) { v &= (v - 1); count++; }
-        return count;
-    }
-
-    static bitToDigit(bit) { return (Math.log2(bit & this.MASK_CANDIDATES) + 1) | 0; }
-
-    static forEachBit(mask, callback) {
-        let m = mask & this.MASK_CANDIDATES;
-        while (m) {
-            const bit = m & -m;
-            m ^= bit;
-            callback(this.bitToDigit(bit) - 1);
-        }
-    }
-
-    static isValidBB(bb, idx, digit) {
-        const pBase = idx * 20;
-        for (let i = 0; i < 20; i++) {
-            const pi = this.PEERS[pBase + i];
-            if (bb.has(0, pi) && bb.has(digit, pi)) return false;
-        }
-        return true;
-    }
-
-    static sees(i, j) { return this.ADJACENCY_MATRIX[i * 81 + j] === 1; }
-
-    static DIMENSIONS = [
-        { name: 'row', mask: (bb, d, i) => bb.rowMask(d, i), toIdx: (i, pos) => i * 9 + pos },
-        { name: 'col', mask: (bb, d, i) => bb.colMask(d, i), toIdx: (i, pos) => pos * 9 + i }
-    ];
-
-    constructor() {
-        SudokuBitBoard.init();
-        this.buf = new Uint32Array(30);
-    }
-
-    reset() { this.buf.fill(0); }
-
-    has(d, i) { return (this.buf[d * 3 + (i >> 5)] >>> (i & 31)) & 1; }
-    set(d, i) { this.buf[d * 3 + (i >> 5)] |= (1 << (i & 31)); }
-    clear(d, i) { this.buf[d * 3 + (i >> 5)] &= ~(1 << (i & 31)); }
-
-    rowMask(d, r) {
-        const start = r * 9, w = start >>> 5, shift = start & 31, base = d * 3;
-        if (shift <= 23) return (this.buf[base + w] >>> shift) & 0x1FF;
-        return ((this.buf[base + w] >>> shift) | (this.buf[base + w + 1] << (32 - shift))) & 0x1FF;
-    }
-
-    colMask(d, c) {
-        let mask = 0;
-        const base = d * 3;
-        const colStart = (9 + c) * 9;
-        const H = SudokuBitBoard.HOUSES;
-        for (let r = 0; r < 9; r++) {
-            const i = H[colStart + r];
-            if ((this.buf[base + (i >> 5)] >>> (i & 31)) & 1) mask |= (1 << r);
-        }
-        return mask;
-    }
-
-    houseCount(d, h0, h1, h2) {
-        const b = d * 3;
-        return SudokuBitBoard.popcount(this.buf[b] & h0) +
-            SudokuBitBoard.popcount(this.buf[b + 1] & h1) +
-            SudokuBitBoard.popcount(this.buf[b + 2] & h2);
-    }
-
-    houseFirstCell(d, h0, h1, h2) {
-        const b = d * 3;
-        let w;
-        w = this.buf[b] & h0; if (w) return 31 - Math.clz32(w & -w);
-        w = this.buf[b + 1] & h1; if (w) return 63 - Math.clz32(w & -w);
-        w = this.buf[b + 2] & h2; if (w) return 95 - Math.clz32(w & -w);
-        return -1;
-    }
-
-    housePosMask(d, houseCells) {
-        let mask = 0, base = d * 3;
-        for (let j = 0; j < 9; j++) {
-            const i = houseCells[j];
-            if ((this.buf[base + (i >> 5)] >>> (i & 31)) & 1) mask |= 1 << j;
-        }
-        return mask;
-    }
-
-    getCellMask(i) {
-        let mask = 0;
-        const w = i >> 5, shift = i & 31;
-        for (let d = 1; d <= 9; d++) {
-            if ((this.buf[d * 3 + w] >>> shift) & 1) mask |= (1 << (d - 1));
-        }
-        return mask;
-    }
-}
 
 // ============================================================================
 // [SECTION 4: LOGICAL SOLVER]
