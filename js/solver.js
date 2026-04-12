@@ -6,7 +6,6 @@
  * Optimized Bit-Centric Sudoku Engine for Antigravity.
  * Includes DLX for brute-force and Logical Solver for human-like deduction.
  */
-
 // ============================================================================
 // [SECTION 1: BITBOARD STRUCTURE]
 // Digit-centric presence masks for rapid deduction.
