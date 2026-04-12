@@ -23,16 +23,16 @@ Tools like `heatmap.js` separate analytical calculations from UI projection:
 
 ## 3. Core Engine Layering (`js/solver.js`)
 
-The engine is structured into 6 horizontal layers to ensure strict separation of concerns:
+The engine is organized into specific layers to strictly separate data representation, utilities, and logical deduction:
 
 | Layer | Responsibility |
 |-------|----------------|
-| **1. SudokuBitUtils** | Low-level bitwise math, masking, and coordinate conversion. |
-| **2. SudokuBitBoard** | Primitive data structure (Uint32Array) for board memory. |
-| **3. SudokuDLX** | Persistent, fixed-memory Dancing Links engine for brute-force. |
-| **4. SudokuLogicalSolver** | Collection of human-standard deduction algorithms. |
-| **5. DifficultyEvaluator** | Central registry for techniques, ranking, and definitive grading. |
-| **6. SudokuUIBridge** | Bridge connecting logical techniques to interactive UI feedback. |
+| **1. SudokuBitBoard** | Digit-centric presence masks (`buf`). Stores adjacency matrix and static house data. Handles low-level bit primitives (`popcount`, `forEachBit`, `isValidBB`). |
+| **2. SudokuBitUtils** | High-level utilities for UnifiedBoard manipulation, candidate updating, and UI error flags. Includes converters like `fromUint8Array` and `toIntGrid`. |
+| **3. SudokuDLX** | Persistent, fixed-memory Dancing Links engine for brute-force searching and solution counting. |
+| **4. SudokuLogicalSolver** | The logical deduction engine. Orchestrates human-like techniques and provides standard cell/candidate mutation methods. |
+| **5. DifficultyEvaluator** | Orchestrates `SudokuLogicalSolver` across rank levels. **Centralizes difficulty logging** within `analyzeFull` to count logical steps accurately. |
+| **6. SudokuUIBridge** | Connects logic to the UI. Manages the "Rocket" step button logic and feedback keys. |
 
 ---
 

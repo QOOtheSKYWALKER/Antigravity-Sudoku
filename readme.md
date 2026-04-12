@@ -34,16 +34,16 @@ sudoku/
 
 ---
 
-## 2. Unified 6-Layer Engine Architecture
+## 2. Unified Bit-Centric Engine Architecture
 
-The Sudoku engine (`solver.js`) is organized into six distinct layers of responsibility:
+The Sudoku engine (`solver.js`) follows a **Strict Layered Architecture** to ensure data integrity and performance:
 
-1.  **SudokuBitUtils**: Pure, stateless bit-manipulation and coordinate mapping.
-2.  **SudokuBitBoard**: Memory-efficient representation using `Uint32Array`.
-3.  **SudokuDLX**: High-speed brute-force engine for uniqueness validation.
-4.  **SudokuLogicalSolver**: Human-like deduction core (Singles, Pairs, Chains).
-5.  **DifficultyEvaluator**: Orchestration of techniques and authoritative difficulty grading.
-6.  **SudokuUIBridge**: Integration layer for UI-level operations (Rocket/Hint logic).
+1.  **SudokuBitBoard**: Core memory representation. Uses digit-centric presence masks for O(1) candidate checks. Handles primitive bit math and adjacency lookups.
+2.  **SudokuBitUtils**: High-level grid orchestration. Manages the **UnifiedBoard** format (bitmask + metadata) and provides UI-centric logic like error flag calculation and board conversion.
+3.  **SudokuDLX**: High-speed brute-force engine. Used for uniqueness validation and base solution generation.
+4.  **SudokuLogicalSolver**: Human-like deduction engine. Operates on `SudokuBitBoard` via imported strategies in `solver-techniques.js`.
+5.  **DifficultyEvaluator**: The grading brain. **Centralizes difficulty logging** (one log per successful logical pass) to provide accurate step-based rankings.
+6.  **SudokuUIBridge**: Tactical UI logic provider. Orchestrates "Rocket" (auto-solve) and "Hint" features.
 
 ---
 
