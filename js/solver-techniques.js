@@ -4,8 +4,8 @@ import { SudokuBitBoard, SudokuLogicalSolver as solver } from './solver.js';
  * Sudoku Solver Techniques Definition
  *
  * Flat static memory model:
- *   solver.unifiedBoard -> Uint32Array(81), index = r*9+c (Single Source of Truth)
- *   solver.setCellValue(idx, val, technique)
+ *   solver.bb -> SudokuBitBoard (Single Source of Truth)
+ *   solver.setCellValue(idx, val)
  *
  * House indices: 0-8 rows, 9-17 cols, 18-26 boxes (via SudokuBitBoard.HOUSES)
  */
@@ -22,10 +22,7 @@ export const TECHNIQUES = [
         id: 'nakedSingle',
         name: 'Naked Single',
         rank: 1,
-        /**
-         * @param {boolean} silent
-         */
-        applyLogical: function (solver, silent = false) {
+        applyLogical: function (solver) {
             let changed = false;
             const bb = solver.bb;
             for (let i = 0; i < 81; i++) {
@@ -34,7 +31,7 @@ export const TECHNIQUES = [
                 if (SudokuBitBoard.popcount(mask) === 1) {
                     const digit = SudokuBitBoard.bitToDigit(mask);
                     if (SudokuBitBoard.isValidBB(bb, i, digit)) {
-                        solver.setCellValue(i, digit, 'Naked Single', silent);
+                        solver.setCellValue(i, digit);
                         changed = true;
                     }
                 }
@@ -47,10 +44,7 @@ export const TECHNIQUES = [
         id: 'hiddenSingle',
         name: 'Hidden Single',
         rank: 1,
-        /**
-         * @param {boolean} silent
-         */
-        applyLogical: function (solver, silent = false) {
+        applyLogical: function (solver) {
             let changed = false;
             const bb = solver.bb;
             const HM = SudokuBitBoard.HOUSE_MASKS;
@@ -62,7 +56,7 @@ export const TECHNIQUES = [
                     const idx = bb.houseFirstCell(d, h0, h1, h2);
                     if (idx < 0 || bb.has(0, idx)) continue;
                     if (SudokuBitBoard.isValidBB(bb, idx, d)) {
-                        solver.setCellValue(idx, d, 'Hidden Single', silent);
+                        solver.setCellValue(idx, d);
                         changed = true;
                     }
                 }
@@ -106,7 +100,7 @@ export const TECHNIQUES = [
                         SudokuBitBoard.forEachBit(bb.rowMask(d, r), (c) => {
                             if (((r / 3 | 0) * 3 + (c / 3 | 0)) !== box) {
                                 const idx = r * 9 + c;
-                                solver.clearCandidate(idx, d);
+                                solver.clearCandidates(idx, 1 << (d - 1));
                                 changed = true;
                             }
                         });
@@ -117,7 +111,7 @@ export const TECHNIQUES = [
                         SudokuBitBoard.forEachBit(bb.colMask(d, c), (r) => {
                             if (((r / 3 | 0) * 3 + (c / 3 | 0)) !== box) {
                                 const idx = r * 9 + c;
-                                solver.clearCandidate(idx, d);
+                                solver.clearCandidates(idx, 1 << (d - 1));
                                 changed = true;
                             }
                         });
@@ -163,7 +157,7 @@ export const TECHNIQUES = [
                                 const idx = SudokuBitBoard.HOUSES[hb + j];
                                 const isOriginalUnit = (dim.name === 'row') ? ((idx / 9 | 0) === i) : ((idx % 9) === i);
                                 if (!isOriginalUnit && !bb.has(0, idx) && (bb.getCellMask(idx) & (1 << (d - 1)))) {
-                                    solver.clearCandidate(idx, d);
+                                    solver.clearCandidates(idx, 1 << (d - 1));
                                     changed = true;
                                 }
                             }
@@ -364,7 +358,7 @@ export const TECHNIQUES_ADVANCED = [
                                     SudokuBitBoard.forEachBit(otherDim.mask(bb, d, pos), (unitIdx) => {
                                         if (unitIdx !== units[a].i && unitIdx !== units[b].i) {
                                             const idx = otherDim.toIdx(pos, unitIdx);
-                                            solver.clearCandidate(idx, d);
+                                            solver.clearCandidates(idx, 1 << (d - 1));
                                             changed = true;
                                         }
                                     });
@@ -408,7 +402,7 @@ export const TECHNIQUES_ADVANCED = [
                                     SudokuBitBoard.forEachBit(otherDim.mask(bb, d, pos), (unitIdx) => {
                                         if (unitIdx !== i1 && unitIdx !== i2 && unitIdx !== i3) {
                                             const idx = otherDim.toIdx(pos, unitIdx);
-                                            solver.clearCandidate(idx, d);
+                                            solver.clearCandidates(idx, 1 << (d - 1));
                                             changed = true;
                                         }
                                     });
@@ -463,7 +457,7 @@ export const TECHNIQUES_ADVANCED = [
                                     if (target === w1Idx || target === w2Idx || target === pivotIdx) continue;
                                     if (!bb.has(0, target) && bb.has(dZ, target)) {
                                         if (SudokuBitBoard.sees(target, w1Idx) && SudokuBitBoard.sees(target, w2Idx)) {
-                                            solver.clearCandidate(target, dZ);
+                                            solver.clearCandidates(target, 1 << (dZ - 1));
                                             changed = true;
                                         }
                                     }
@@ -511,7 +505,7 @@ export const TECHNIQUES_ADVANCED = [
                                 if (bb.has(0, k) || !bb.has(d, k)) continue;
                                 if (k === cellI || k === cellJ) continue;
                                 if (SudokuBitBoard.sees(k, cellI) && SudokuBitBoard.sees(k, cellJ)) {
-                                    solver.clearCandidate(k, d);
+                                    solver.clearCandidates(k, 1 << (d - 1));
                                     changed = true;
                                 }
                             }
@@ -592,7 +586,7 @@ export const TECHNIQUES_ADVANCED = [
                         for (let i = 0; i < 81; i++) {
                             if (i === startIdx || i === next || bb.has(0, i) || !bb.has(dStart, i)) continue;
                             if (SudokuBitBoard.sees(i, startIdx) && SudokuBitBoard.sees(i, next)) {
-                                solver.clearCandidate(i, dStart);
+                                solver.clearCandidates(i, 1 << (dStart - 1));
                                 changed = true;
                                 found = true;
                             }

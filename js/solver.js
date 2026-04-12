@@ -462,39 +462,19 @@ SudokuDLX.init();
 
 export class SudokuLogicalSolver {
 
-    constructor(grid, fastMode = true) {
+    constructor(grid) {
         this.difficultyLog = [];
         this.fillLog = [];
-        this.fastMode = fastMode;
-        this.unifiedBoard = fastMode ? null : new Uint32Array(81);
         this.bb = new SudokuBitBoard();
         this.biCells = [];
         this.metadataDirty = true;
-        this.currentTechnique = null;
         this.reset(grid);
     }
 
     reset(grid) {
         this.difficultyLog.length = 0;
         this.fillLog.length = 0;
-        if (this.fastMode) {
-            this._rebuildBBFromGrid(grid);
-        } else {
-            if (grid instanceof Uint32Array || grid instanceof Uint16Array) {
-                this.unifiedBoard.set(grid);
-                for (let i = 0; i < 81; i++) {
-                    const cell = this.unifiedBoard[i];
-                    if (SudokuBitUtils.isSolved(cell)) {
-                        const sol = SudokuBitUtils.getSolution(cell);
-                        if (sol > 0) this.unifiedBoard[i] = (cell & ~SudokuBitBoard.MASK_CANDIDATES) | (1 << (sol - 1));
-                    }
-                }
-                SudokuBitUtils.updateAllCandidates(this.unifiedBoard);
-            } else {
-                this._fillUnifiedFromUint8(grid);
-            }
-            this.rebuildBB();
-        }
+        this._rebuildBBFromGrid(grid);
         this.updateMetadata();
     }
 
@@ -553,29 +533,15 @@ export class SudokuLogicalSolver {
 
     isSolved() { return this.bb.buf[0] === 0xFFFFFFFF && this.bb.buf[1] === 0xFFFFFFFF && (this.bb.buf[2] & 0x1FFFF) === 0x1FFFF; }
 
-    clearCandidate(idx, d) {
-        if (this.bb.has(0, idx)) return;
-        if (!this.fastMode) this.unifiedBoard[idx] &= ~(1 << (d - 1));
-        this.bb.clear(d, idx);
-        this.metadataDirty = true;
-    }
 
     clearCandidates(idx, mask) {
         if (this.bb.has(0, idx)) return;
-        if (!this.fastMode) this.unifiedBoard[idx] &= ~(mask & SudokuBitBoard.MASK_CANDIDATES);
         let m = mask & SudokuBitBoard.MASK_CANDIDATES;
         while (m) { const b = m & -m; this.bb.clear(SudokuBitBoard.bitToDigit(b), idx); m ^= b; }
         this.metadataDirty = true;
     }
 
-    setCellValue(idx, val, technique, silent = false) {
-        if (!this.fastMode) {
-            this.unifiedBoard[idx] = SudokuBitUtils.confirmValue(this.unifiedBoard[idx], val);
-            const mask = ~(1 << (val - 1));
-            SudokuBitUtils.forEachPeer(idx, (p) => {
-                if (!this.bb.has(0, p)) this.unifiedBoard[p] &= mask;
-            });
-        }
+    setCellValue(idx, val) {
         this.bb.set(0, idx);
         for (let d = 1; d <= 9; d++) if (d !== val) this.bb.clear(d, idx);
         SudokuBitUtils.forEachPeer(idx, (p) => {
@@ -690,11 +656,8 @@ export const SudokuUIBridge = {
      * Rocket Button Logic: Fills logical singles or prunes memos.
      */
     solveStep: function (unifiedBoard, _unused, sandbox = null) {
-        const solver = sandbox || new SudokuLogicalSolver(unifiedBoard, false);
-        if (sandbox) {
-            if (solver.fastMode) { solver.fastMode = false; solver.unifiedBoard = new Uint32Array(81); }
-            solver.reset(unifiedBoard);
-        }
+        const solver = sandbox || new SudokuLogicalSolver(unifiedBoard);
+        if (sandbox) solver.reset(unifiedBoard);
 
         // 1. Try Rank 1 (Naked/Hidden Singles)
         let anyProgress = false;
@@ -702,7 +665,7 @@ export const SudokuUIBridge = {
         while (loop) {
             loop = false;
             for (const tech of TECH_BY_RANK?.[1] ?? []) {
-                if (tech.applyLogical(solver, true)) {
+                if (tech.applyLogical(solver)) {
                     anyProgress = true;
                     loop = true;
                     break;
@@ -713,9 +676,10 @@ export const SudokuUIBridge = {
         if (anyProgress) {
             let fillChanged = false;
             for (let i = 0; i < 81; i++) {
-                const bCell = solver.unifiedBoard[i];
-                if (SudokuBitUtils.isSolved(bCell) && !SudokuBitUtils.isSolved(unifiedBoard[i])) {
-                    unifiedBoard[i] = (unifiedBoard[i] & 0xFFFF0000) | (bCell & 0xFFFF);
+                if (!SudokuBitUtils.isSolved(unifiedBoard[i]) && solver.bb.has(0, i)) {
+                    let digit = 0;
+                    for (let d = 1; d <= 9; d++) { if (solver.bb.has(d, i)) { digit = d; break; } }
+                    unifiedBoard[i] = SudokuBitUtils.createSolved(digit, false);
                     fillChanged = true;
                 }
             }
@@ -738,7 +702,7 @@ export const SudokuUIBridge = {
         SudokuBitUtils.clearUnsolvedCandidates(tempBoard);
         SudokuBitUtils.updateAllCandidates(tempBoard);
 
-        const pruningSolver = new SudokuLogicalSolver(tempBoard, false);
+        const pruningSolver = new SudokuLogicalSolver(tempBoard);
         let pruned = true;
         while (pruned) {
             pruned = false;
